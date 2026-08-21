@@ -181,6 +181,42 @@ describe('LocalSubprocessRuntime', () => {
     await fiber.dispose()
   })
 
+  it('does not pass ambient Git process-local config to terminal allocation', async () => {
+    let spawnedEnv: NodeJS.ProcessEnv | undefined
+    const terminal = {
+      pid: 123,
+      onData: () => ({ dispose: () => {} }),
+      onExit: () => ({ dispose: () => {} }),
+      write: () => {},
+      kill: () => {},
+    }
+    process.env.GIT_CONFIG_COUNT = '1'
+    process.env.GIT_CONFIG_VALUE_0 = 'false'
+    vi.resetModules()
+    vi.doMock('node-pty', () => ({
+      spawn: (_file: string, _argv: string[], options: { env?: NodeJS.ProcessEnv }) => {
+        spawnedEnv = options.env
+        return terminal
+      },
+    }))
+    try {
+      const { default: IsolatedLocalSubprocessRuntime } = await import('../src/index.ts')
+      const ctx = new Context()
+      const fiber = await ctx.plugin(IsolatedLocalSubprocessRuntime)
+      await ctx.subprocess.spawnTerminal({
+        argv: ['shell'], cwd: process.cwd(), rows: 24, cols: 80, graceMs: 1,
+      })
+      expect(spawnedEnv?.GIT_CONFIG_COUNT).toBeUndefined()
+      expect(spawnedEnv?.GIT_CONFIG_VALUE_0).toBeUndefined()
+      await fiber.dispose()
+    } finally {
+      delete process.env.GIT_CONFIG_COUNT
+      delete process.env.GIT_CONFIG_VALUE_0
+      vi.doUnmock('node-pty')
+      vi.resetModules()
+    }
+  })
+
   it('terminates and joins an owned terminal during disposal', async () => {
     const ctx = new Context()
     const fiber = await ctx.plugin(LocalSubprocessRuntime)
@@ -401,6 +437,24 @@ describe('LocalSubprocessRuntime', () => {
     expect(result.exitCode).toBe(0)
     expect(handle.collected.stdout!.readFrom(0).text).toBe('managed\n')
     await fiber.dispose()
+  })
+
+  it('does not pass ambient Git process-local config to ordinary spawns', async () => {
+    process.env.GIT_CONFIG_COUNT = '1'
+    process.env.GIT_CONFIG_VALUE_0 = 'false'
+    const ctx = new Context()
+    const fiber = await ctx.plugin(LocalSubprocessRuntime)
+    try {
+      const handle = ctx.subprocess.spawn(spec('', {
+        argv: [process.execPath, '-e', 'process.stdout.write(process.env.GIT_CONFIG_COUNT ?? "absent")'],
+      }))
+      await expect(handle.done).resolves.toMatchObject({ exitCode: 0 })
+      expect(handle.collected.stdout!.readFrom(0).text).toBe('absent')
+    } finally {
+      delete process.env.GIT_CONFIG_COUNT
+      delete process.env.GIT_CONFIG_VALUE_0
+      await fiber.dispose()
+    }
   })
 
   it('disposal kills still-running processes and awaits their exit', async () => {

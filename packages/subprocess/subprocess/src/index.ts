@@ -43,24 +43,31 @@ export type {
  */
 export const SENSITIVE_ENV_PATTERN = /KEY|PASSWORD|SECRET|TOKEN/i
 
+/** Git's process-local config protocol must not escape the process that assembled it. */
+const GIT_PROCESS_CONFIG_PATTERN = /^GIT_CONFIG_(?:COUNT|KEY_\d+|VALUE_\d+)$/i
+
 /**
- * The ambient parent environment minus credential-shaped names and minus all
- * `DSH_*` names — the canonical base every harness child starts from. `PATH`,
- * `HOME`, locale, and proxy variables survive, so child CLIs run normally;
- * harness identity never leaks implicitly (a deliberately forwarded
- * credential or current `DSH_*` fact goes through the spec's explicit `env`,
- * which merges after this scrub). Both scrubs match case-insensitively:
- * Windows environment names are case-insensitive, so a parent `dsh_*` entry
- * would otherwise survive and read back as `$env:DSH_*` in the child;
- * deliberate lowercase `dsh_*` names on POSIX are implausible. Exported as a plain function so spawners
- * that cannot route through the service (node-pty backends, SDK-managed
- * transports) share the one scrub definition.
+ * The ambient parent environment minus credential-shaped names, all `DSH_*`
+ * names, and Git's indexed process-local config protocol — the canonical base
+ * every harness child starts from. `PATH`, `HOME`, locale, ordinary Git
+ * variables, and proxy variables survive, so child CLIs run normally; harness
+ * identity and a parent's command-scoped Git overrides never leak implicitly.
+ * A deliberately forwarded entry goes through the spec's explicit `env`, which
+ * merges after this scrub. Matching is case-insensitive because Windows
+ * environment names are case-insensitive. Exported as a plain function so
+ * spawners that cannot route through the service (node-pty backends,
+ * SDK-managed transports) share the one scrub definition.
  * @returns a fresh environment object safe to hand to a child spawn.
  */
 export function scrubbedParentEnv(): Record<string, string> {
   const env: Record<string, string> = {}
   for (const [key, value] of Object.entries(process.env)) {
-    if (value !== undefined && !SENSITIVE_ENV_PATTERN.test(key) && !key.toUpperCase().startsWith(DSH_ENV_PREFIX)) env[key] = value
+    if (
+      value !== undefined
+      && !SENSITIVE_ENV_PATTERN.test(key)
+      && !key.toUpperCase().startsWith(DSH_ENV_PREFIX)
+      && !GIT_PROCESS_CONFIG_PATTERN.test(key)
+    ) env[key] = value
   }
   return env
 }

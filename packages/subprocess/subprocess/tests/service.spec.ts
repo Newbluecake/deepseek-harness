@@ -76,12 +76,17 @@ describe('SubprocessRuntime seam', () => {
     await expect(ctx.plugin(SecondService)).rejects.toThrow(/service "subprocess" has been registered/)
   })
 
-  it('scrubbedParentEnv drops credential-shaped and DSH_ names (case-insensitively) but keeps PATH', () => {
+  it('scrubbedParentEnv drops private and process-local config names but keeps ordinary entries', () => {
     process.env.DSH_SCRUB_PROBE = 'stale'
     process.env.dsh_scrub_probe_lower = 'stale'
     process.env.SCRUB_PROBE_TOKEN = 'secret'
     process.env.SCRUB_PROBE_PASSWORD = 'secret'
     process.env.SCRUB_PROBE_PLAIN = 'visible'
+    process.env.GIT_CONFIG_COUNT = '1'
+    process.env.GIT_CONFIG_KEY_0 = 'status.renames'
+    process.env.GIT_CONFIG_VALUE_0 = 'false'
+    process.env.GIT_CONFIG_NOSYSTEM = '1'
+    process.env.GIT_AUTHOR_NAME = 'Test Author'
     try {
       const env = scrubbedParentEnv()
       expect(env.DSH_SCRUB_PROBE).toBeUndefined()
@@ -89,6 +94,11 @@ describe('SubprocessRuntime seam', () => {
       expect(env.SCRUB_PROBE_TOKEN).toBeUndefined()
       expect(env.SCRUB_PROBE_PASSWORD).toBeUndefined()
       expect(env.SCRUB_PROBE_PLAIN).toBe('visible')
+      expect(env.GIT_CONFIG_COUNT).toBeUndefined()
+      expect(env.GIT_CONFIG_KEY_0).toBeUndefined()
+      expect(env.GIT_CONFIG_VALUE_0).toBeUndefined()
+      expect(env.GIT_CONFIG_NOSYSTEM).toBe('1')
+      expect(env.GIT_AUTHOR_NAME).toBe('Test Author')
       expect(env.PATH).toBeDefined()
     } finally {
       delete process.env.DSH_SCRUB_PROBE
@@ -96,6 +106,11 @@ describe('SubprocessRuntime seam', () => {
       delete process.env.SCRUB_PROBE_TOKEN
       delete process.env.SCRUB_PROBE_PASSWORD
       delete process.env.SCRUB_PROBE_PLAIN
+      delete process.env.GIT_CONFIG_COUNT
+      delete process.env.GIT_CONFIG_KEY_0
+      delete process.env.GIT_CONFIG_VALUE_0
+      delete process.env.GIT_CONFIG_NOSYSTEM
+      delete process.env.GIT_AUTHOR_NAME
     }
   })
 })
