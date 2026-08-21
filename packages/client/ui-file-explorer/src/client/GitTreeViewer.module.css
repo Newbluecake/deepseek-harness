@@ -1,0 +1,253 @@
+/* Git Graph modal: visual branch graph (colored lanes + commit nodes) over the
+   commit list, plus the branch color palette and ref badges. */
+
+:global(:root) {
+  --dfe-branch-0: #3b82f6;
+  --dfe-branch-1: #22c55e;
+  --dfe-branch-2: #f59e0b;
+  --dfe-branch-3: #ef4444;
+  --dfe-branch-4: #8b5cf6;
+  --dfe-branch-5: #06b6d4;
+  --dfe-branch-6: #ec4899;
+  --dfe-branch-7: #f97316;
+  --dfe-branch-8: #a855f7;
+  --dfe-branch-9: #84cc16;
+}
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  pointer-events: auto;
+  padding: 24px;
+}
+
+.card {
+  background: var(--dsw-alias-bg-layer-1);
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 12px;
+  width: min(92vw, 1200px);
+  max-width: 100%;
+  height: min(80vh, 700px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--dsw-alias-border-l1);
+  background: var(--dsw-alias-bg-layer-2);
+}
+
+.title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--dsw-alias-label-primary);
+}
+
+.close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+}
+
+.close:hover {
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-primary);
+}
+
+.body {
+  flex: 1;
+  overflow: auto;
+  padding: 14px;
+}
+
+.scroll {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.graph {
+  flex: none;
+  display: block;
+}
+
+.edge {
+  fill: none;
+  stroke-width: 1.5px;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.node {
+  stroke: var(--dsw-alias-bg-layer-1);
+  stroke-width: 1.5px;
+}
+
+.commits {
+  flex: 1;
+  min-width: 420px;
+}
+
+.commitRow {
+  /* Height includes the bottom border so rows match the SVG graph's row grid. */
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  border-bottom: 1px solid var(--dsw-alias-border-l1);
+  overflow: hidden;
+}
+
+.commitTop {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.subject {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  color: var(--dsw-alias-label-primary);
+}
+
+.commitMeta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.author {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.date {
+  flex: none;
+}
+
+.hash {
+  flex: none;
+  font-family: var(--dfe-font-code);
+}
+
+.ref {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  height: 17px;
+  padding: 0 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.refHead {
+  color: #2563eb;
+  background: rgba(37, 99, 235, 0.14);
+}
+
+.refBranch {
+  color: #16a34a;
+  background: rgba(22, 163, 74, 0.14);
+}
+
+.refRemote {
+  color: #9333ea;
+  background: rgba(147, 51, 234, 0.14);
+}
+
+.refTag {
+  color: #d97706;
+  background: rgba(217, 119, 6, 0.14);
+}
+
+.foot {
+  padding: 8px 14px;
+  border-top: 1px solid var(--dsw-alias-border-l1);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 13px;
+  font-family: var(--dfe-font-code);
+  background: var(--dsw-alias-bg-layer-2);
+}
+
+.truncNote {
+  margin-bottom: 8px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  background: var(--dsw-alias-bg-layer-2);
+  color: var(--dsw-alias-state-warn-primary);
+  font-size: 11px;
+}
+
+.empty {
+  padding: 22px 12px;
+  text-align: center;
+  color: var(--dsw-alias-label-secondary);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.error {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.muted {
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+}
+
+.spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--dsw-alias-border-l2);
+  border-top-color: var(--dsw-alias-brand-primary);
+  border-radius: 50%;
+  animation: dfe-spin 0.8s linear infinite;
+}
+
+@keyframes dfe-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

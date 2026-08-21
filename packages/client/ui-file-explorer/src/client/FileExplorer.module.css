@@ -1,0 +1,308 @@
+/* Shared theme-aware tokens (light defaults, dark overrides) plus the tree styles. */
+
+:global(:root) {
+  --dfe-tok-com: #008000;
+  --dfe-tok-str: #A31515;
+  --dfe-tok-num: #098658;
+  --dfe-tok-kw: #0000FF;
+  --dfe-add-fg: #1a7f37;
+  --dfe-add-bg: rgba(26, 127, 55, 0.12);
+  --dfe-del-fg: #cf222e;
+  --dfe-del-bg: rgba(207, 34, 46, 0.10);
+  --dfe-font-code: ui-monospace, SFMono-Regular, JetBrains Mono, Fira Code, Cascadia Code, Menlo, Consolas, monospace;
+}
+
+:global(body[data-ds-dark-theme]) {
+  --dfe-tok-com: #6A9955;
+  --dfe-tok-str: #CE9178;
+  --dfe-tok-num: #B5CEA8;
+  --dfe-tok-kw: #C586C0;
+  --dfe-add-fg: #98c379;
+  --dfe-add-bg: rgba(152, 195, 121, 0.15);
+  --dfe-del-fg: #f47067;
+  --dfe-del-bg: rgba(240, 112, 103, 0.15);
+}
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  height: 100%;
+  overflow: hidden;
+  font-size: 14px;
+  color: var(--dsw-alias-label-primary);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.headIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dsw-alias-brand-primary);
+  margin-left: 4px;
+  cursor: pointer;
+}
+
+.headIcon:hover {
+  background: var(--dsw-alias-bg-layer-2);
+}
+
+.title {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.count {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--dsw-alias-label-secondary);
+  background: var(--dsw-alias-bg-layer-2);
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+.iconBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+}
+
+.iconBtn:hover:not(:disabled) {
+  background: var(--dsw-alias-bg-layer-2);
+  color: var(--dsw-alias-label-primary);
+}
+
+.iconBtn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  background: var(--dsw-alias-bg-layer-1);
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 8px;
+}
+
+.search:focus-within {
+  border-color: var(--dsw-alias-brand-primary);
+}
+
+.searchIcon {
+  display: flex;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.searchInput {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.searchInput::placeholder {
+  color: var(--dsw-alias-label-secondary);
+  opacity: 0.8;
+}
+
+.searchClear {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+}
+
+.rootPath {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--dfe-font-code);
+  font-size: 13px;
+  color: var(--dsw-alias-label-secondary);
+  padding-left: 6px;
+}
+
+.list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 3px 0;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 10px;
+  background: var(--dsw-alias-bg-layer-1);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  margin: 0 4px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.row:hover {
+  background: var(--dsw-alias-bg-layer-2);
+}
+
+.rowSelected {
+  background: var(--dsw-alias-bg-layer-2);
+}
+
+.rowSelected .name {
+  color: var(--dsw-alias-brand-primary);
+}
+
+.rowDir .name {
+  font-weight: 500;
+}
+
+.twist {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  line-height: 1;
+  user-select: none;
+}
+
+.twistSpacer {
+  width: 16px;
+  flex: none;
+}
+
+.icon {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.iconDir {
+  color: var(--dsw-alias-brand-primary);
+}
+
+/* File-type badge colors. Mid-tone values stay legible on both themes. */
+.fileJs { color: #eab308; }
+.fileTs { color: #3b82f6; }
+.fileJava { color: #ea580c; }
+.filePy { color: #22c55e; }
+.fileRb { color: #ef4444; }
+.filePhp { color: #8b5cf6; }
+.fileGo { color: #06b6d4; }
+.fileRs { color: #f97316; }
+.fileC { color: #64748b; }
+.fileCpp { color: #ec4899; }
+.fileCs { color: #84cc16; }
+.fileSwift { color: #fb7185; }
+.fileKt { color: #a78bfa; }
+.fileHtml { color: #f97316; }
+.fileCss { color: #a855f7; }
+.fileJson { color: #94a3b8; }
+.fileMd { color: #60a5fa; }
+.fileYaml { color: #f43f5e; }
+.fileSh { color: #4ade80; }
+.fileSql { color: #fbbf24; }
+.fileToml { color: #a3e635; }
+.fileDocker { color: #38bdf8; }
+
+.name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--dfe-font-code);
+  font-size: 14px;
+}
+
+.size {
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  flex: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.emptyInline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+}
+
+.empty {
+  padding: 22px 12px;
+  text-align: center;
+  color: var(--dsw-alias-label-secondary);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.error {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.muted {
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+}
+
+.spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--dsw-alias-border-l2);
+  border-top-color: var(--dsw-alias-brand-primary);
+  border-radius: 50%;
+  animation: dfe-spin 0.8s linear infinite;
+}
+
+@keyframes dfe-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

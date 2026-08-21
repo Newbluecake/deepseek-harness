@@ -334,6 +334,13 @@ export class E2BTerminalHandle implements SubprocessTerminalHandle {
   }
 
   /** @inheritdoc */
+  resize(cols: number, rows: number): void {
+    // Fire-and-forget: PTY resize is a best-effort notification (SIGWINCH); the
+    // seam's sync signature keeps the local provider (node-pty) synchronous.
+    void this.sandbox.pty.resize(this.pid, { cols, rows }, commandOpts(this.controlEnvs, undefined))
+  }
+
+  /** @inheritdoc */
   terminate(): Promise<void> {
     if (this.cleanup !== undefined) return this.cleanup
     this.operationController.abort(new Error('subprocess-e2b: terminal is terminating'))

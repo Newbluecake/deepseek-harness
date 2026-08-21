@@ -256,6 +256,13 @@ export interface SubprocessTerminalHandle {
    */
   signalForeground(signal: SubprocessTerminalSignal): Promise<number>
   /**
+   * Resize the terminal; the shell and full-screen programs observe the new
+   * dimensions through SIGWINCH. Immediate and best-effort.
+   * @param cols - new column count.
+   * @param rows - new row count.
+   */
+  resize(cols: number, rows: number): void
+  /**
    * Idempotently terminate every terminal-session member the provider can still observe and await quiescence.
    * After settlement, no write, inspection, or signal call remains in flight.
    * Providers document substrate-specific observability limits.

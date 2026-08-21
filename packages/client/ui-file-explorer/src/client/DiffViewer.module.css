@@ -1,0 +1,349 @@
+/* Git diff modal: changes list plus per-file side-by-side diff. */
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  pointer-events: auto;
+  padding: 24px;
+}
+
+.card {
+  background: var(--dsw-alias-bg-layer-1);
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 12px;
+  width: min(92vw, 1200px);
+  max-width: 100%;
+  height: min(80vh, 700px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--dsw-alias-border-l1);
+  background: var(--dsw-alias-bg-layer-2);
+}
+
+.title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--dsw-alias-label-primary);
+}
+
+.close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+}
+
+.close:hover {
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-primary);
+}
+
+.body {
+  flex: 1;
+  overflow: auto;
+  padding: 14px;
+}
+
+/* The diff body plus the overview ruler, side by side. */
+.diffArea {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+/* Overview ruler: a fixed vertical strip on the right edge with a colored
+   mark per changed region (VS Code-style; no code preview). */
+.ruler {
+  flex: none;
+  width: 14px;
+  position: relative;
+  border-left: 1px solid var(--dsw-alias-border-l1);
+  background: var(--dsw-alias-bg-layer-2);
+}
+
+.rulerMark {
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  min-height: 3px;
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.rulerMark:hover {
+  outline: 1px solid var(--dsw-alias-label-primary);
+}
+
+.rulerAdd {
+  background: rgba(26, 127, 55, 0.7);
+}
+
+.rulerDel {
+  background: rgba(207, 34, 46, 0.7);
+}
+
+.rulerMod {
+  background: rgba(175, 124, 0, 0.7);
+}
+
+.foot {
+  padding: 8px 14px;
+  border-top: 1px solid var(--dsw-alias-border-l1);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 13px;
+  font-family: var(--dfe-font-code);
+  background: var(--dsw-alias-bg-layer-2);
+}
+
+/* File-diff sub-header (back button + path) at the top of the diff body. */
+.subHead {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--dsw-alias-border-l1);
+  background: var(--dsw-alias-bg-layer-2);
+}
+
+.subBack {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+  flex: none;
+}
+
+.subBack:hover {
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-primary);
+}
+
+.subTitle {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--dsw-alias-label-primary);
+  font-family: var(--dfe-font-code);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.chTitle {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--dsw-alias-label-primary);
+  margin: 10px 0 6px;
+}
+
+.chRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: var(--dfe-font-code);
+  font-size: 14px;
+}
+
+.chRow:hover {
+  background: var(--dsw-alias-bg-layer-2);
+}
+
+.chCode {
+  flex: none;
+  min-width: 20px;
+  text-align: center;
+  font-weight: 700;
+  font-size: 12px;
+  background: var(--dsw-alias-bg-layer-2);
+  border-radius: 4px;
+  padding: 1px 4px;
+}
+
+.chCodeA {
+  color: var(--dsw-alias-state-success-primary);
+}
+
+.chCodeD {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.chCodeM {
+  color: var(--dsw-alias-state-warn-primary);
+}
+
+.chCodeU {
+  color: var(--dsw-alias-label-secondary);
+}
+
+.chPath {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sdWrap {
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 8px;
+  overflow: hidden;
+  font-family: var(--dfe-font-code);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.sdRow {
+  display: flex;
+  min-height: 20px;
+}
+
+.sdHead {
+  background: var(--dsw-alias-bg-layer-2);
+  font-weight: 600;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 11px;
+  border-bottom: 1px solid var(--dsw-alias-border-l1);
+}
+
+.sdCell {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  gap: 8px;
+  padding: 0 8px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.sdLeft {
+  border-right: 1px solid var(--dsw-alias-border-l1);
+}
+
+.sdNo {
+  flex: none;
+  width: 30px;
+  text-align: right;
+  color: var(--dsw-alias-label-secondary);
+  opacity: 0.6;
+  user-select: none;
+}
+
+.sdText {
+  flex: 1;
+  min-width: 0;
+}
+
+.sdDel {
+  background: var(--dfe-del-bg);
+}
+
+.sdAdd {
+  background: var(--dfe-add-bg);
+}
+
+.sdBlank {
+  background: var(--dsw-alias-bg-layer-2);
+  opacity: 0.55;
+}
+
+.tokCom {
+  color: var(--dfe-tok-com);
+  font-style: italic;
+}
+
+.tokStr {
+  color: var(--dfe-tok-str);
+}
+
+.tokNum {
+  color: var(--dfe-tok-num);
+}
+
+.tokKw {
+  color: var(--dfe-tok-kw);
+}
+
+.truncNote {
+  margin-bottom: 8px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  background: var(--dsw-alias-bg-layer-2);
+  color: var(--dsw-alias-state-warn-primary);
+  font-size: 11px;
+}
+
+.empty {
+  padding: 22px 12px;
+  text-align: center;
+  color: var(--dsw-alias-label-secondary);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.error {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.muted {
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+}
+
+.spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--dsw-alias-border-l2);
+  border-top-color: var(--dsw-alias-brand-primary);
+  border-radius: 50%;
+  animation: dfe-spin 0.8s linear infinite;
+}
+
+@keyframes dfe-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

@@ -100,6 +100,16 @@
     - id: plugin-inventory
       name: '@deepseek-ai/dsh-host-plugin-inventory'
 
+    # Browser-facing file-explorer data service (workspace listing, text preview,
+    # git change discovery/diff). Read-only over fs + shell + sandbox-policy.
+    - id: file-explorer
+      name: '@deepseek-ai/dsh-file-explorer'
+
+    # Browser-facing interactive terminal service: spawns real shell PTYs in the
+    # calling session's workspace and streams their raw output to the browser.
+    - id: terminal-web
+      name: '@deepseek-ai/dsh-terminal-web'
+
     # The API gateway: the transport-agnostic dispatch face every client shape
     # shares. The base layer's agent-default-model service owns the default model.
     - id: api-gateway
@@ -253,6 +263,15 @@
 
     - id: ui-reference
       name: '@deepseek-ai/dsh-client-ui-reference'
+
+    # Workspace tree in the details column, plus text-preview and git-diff modals.
+    - id: ui-file-explorer
+      name: '@deepseek-ai/dsh-client-ui-file-explorer'
+
+    # Interactive terminal: an xterm.js bottom panel with multiple persistent
+    # shell sessions as tabs, over the terminal-web Remote.
+    - id: ui-terminal
+      name: '@deepseek-ai/dsh-client-ui-terminal'
 
     # Background jobs: the session-header list over the jobsBySession mirror.
     - id: ui-jobs

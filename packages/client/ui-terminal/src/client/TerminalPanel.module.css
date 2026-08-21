@@ -1,0 +1,243 @@
+/* Terminal panel: a right-docked floating layer (half viewport width by
+   default), draggable left edge, fullscreen toggle, tab bar + emulator area. */
+
+.panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 900;
+  display: flex;
+  flex-direction: row;
+  background: var(--dsw-alias-bg-layer-1);
+  border-left: 1px solid var(--dsw-alias-border-l1);
+  box-shadow: -8px 0 32px rgba(0, 0, 0, 0.28);
+}
+
+.resizeHandle {
+  flex: none;
+  width: 5px;
+  cursor: col-resize;
+  background: transparent;
+}
+
+.resizeHandle:hover {
+  background: var(--dsw-alias-brand-primary);
+  opacity: 0.4;
+}
+
+.panelInner {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.tabbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--dsw-alias-border-l1);
+  background: var(--dsw-alias-bg-layer-2);
+  flex: none;
+}
+
+.tabbarIcon {
+  display: flex;
+  color: var(--dsw-alias-brand-primary);
+  flex: none;
+}
+
+.tabs {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  overflow-x: auto;
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 6px 3px 10px;
+  border-radius: 7px;
+  font-size: 12px;
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+  flex: none;
+  max-width: 180px;
+  user-select: none;
+}
+
+.tab:hover {
+  background: var(--dsw-alias-bg-layer-1);
+}
+
+.tabActive {
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-primary);
+}
+
+.tabDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--dsw-alias-state-success-primary, #22c55e);
+  flex: none;
+}
+
+.tabDotExited {
+  background: var(--dsw-alias-border-l2);
+}
+
+.tabLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tabEdit {
+  flex: 1;
+  min-width: 40px;
+  max-width: 140px;
+  padding: 1px 4px;
+  border: 1px solid var(--dsw-alias-brand-primary);
+  border-radius: 4px;
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-primary);
+  font-size: 12px;
+  font-family: inherit;
+  outline: none;
+}
+
+.tabClose {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+  flex: none;
+}
+
+.tabClose:hover {
+  background: var(--dsw-alias-bg-layer-2);
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.iconBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+  flex: none;
+}
+
+.iconBtn:hover:not(:disabled) {
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-primary);
+}
+
+.iconBtn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.termArea {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.term {
+  /* No padding: the FitAddon must compute cols/rows from the exact renderable
+     area, or full-screen programs (top/vim) get their right edge cut off. */
+  position: absolute;
+  inset: 0;
+}
+
+.termHidden {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.empty {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.emptyIcon {
+  display: flex;
+  opacity: 0.5;
+}
+
+.emptyIcon svg {
+  width: 28px;
+  height: 28px;
+}
+
+.emptyBtn {
+  padding: 6px 16px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-layer-2);
+  color: var(--dsw-alias-label-primary);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.emptyBtn:hover:not(:disabled) {
+  background: var(--dsw-alias-bg-layer-1);
+}
+
+.emptyBtn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.fab {
+  /* Right edge, just below the file-explorer reveal rail (which is centered
+     at top:50%, 120px tall) — the terminal button must not overlap it. */
+  position: fixed;
+  right: 0;
+  top: calc(50% + 68px);
+  z-index: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 100px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-right: none;
+  border-radius: 10px 0 0 10px;
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-brand-primary);
+  cursor: pointer;
+  pointer-events: auto;
+  box-shadow: -2px 0 8px rgba(0, 0, 0, 0.08);
+}
+
+.fab:hover {
+  background: var(--dsw-alias-bg-layer-2);
+}

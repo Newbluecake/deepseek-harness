@@ -75,6 +75,9 @@
       "path": "../../skill/skill"
     },
     {
+      "path": "../../terminal/terminal-web"
+    },
+    {
       "path": "../../jobs/jobs"
     },
     {

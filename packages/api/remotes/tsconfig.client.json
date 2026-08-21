@@ -55,6 +55,9 @@
       "path": "../../settings/settings"
     },
     {
+      "path": "../../terminal/terminal-web"
+    },
+    {
       "path": "../../typert/protocol"
     }
   ]

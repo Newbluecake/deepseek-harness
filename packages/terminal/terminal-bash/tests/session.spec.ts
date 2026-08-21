@@ -54,6 +54,8 @@ class FakeTerminal implements SubprocessTerminalHandle {
   terminateError: Error | undefined
   private cleanup: Promise<void> | undefined
 
+  resize(_cols: number, _rows: number): void {}
+
   constructor(public inspector = new FakeInspector()) {}
 
   emitData(data: string): void {

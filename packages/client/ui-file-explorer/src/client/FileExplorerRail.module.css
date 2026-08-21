@@ -1,0 +1,26 @@
+/* Right-edge reveal rail for the collapsed details column. */
+
+.rail {
+  position: fixed;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 40px;
+  height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--dsw-alias-bg-layer-1);
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-right: none;
+  border-radius: 10px 0 0 10px;
+  color: var(--dsw-alias-brand-primary);
+  cursor: pointer;
+  z-index: 900;
+  pointer-events: auto;
+  box-shadow: -2px 0 8px rgba(0, 0, 0, 0.08);
+}
+
+.rail:hover {
+  background: var(--dsw-alias-bg-layer-2);
+}
