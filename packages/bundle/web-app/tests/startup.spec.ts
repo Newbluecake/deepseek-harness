@@ -34,7 +34,7 @@ afterEach(async () => {
  * @param args - the invocation's inner arguments.
  * @returns the service value and observed consumer/process effects.
  */
-async function bootProvider(args: string[]): Promise<{
+async function bootProvider(args: string[], config?: { allowNonLoopbackHost?: boolean }): Promise<{
   values: WebStartupValues | undefined
   observed: Observed
 }> {
@@ -48,7 +48,7 @@ export function apply(_ctx, config) { globalThis.__webStartupObserved.readerConf
   writeFileSync(join(dir, 'provider.mjs'), `
 export const name = 'web-startup'
 export const inject = ['cmdlineArgs']
-export const apply = ctx => globalThis.__webStartupApply(ctx)
+export const apply = (ctx, config) => globalThis.__webStartupApply(ctx, config)
 `)
   writeFileSync(join(dir, 'cordis.yml'), [
     '- id: reader',
@@ -61,6 +61,10 @@ export const apply = ctx => globalThis.__webStartupApply(ctx)
     '    trustedHosts: !!js ctx.webStartup.trustedHosts',
     '- id: provider',
     `  name: ${pathToFileURL(join(dir, 'provider.mjs')).href}`,
+    ...config === undefined ? [] : [
+      '  config:',
+      `    allowNonLoopbackHost: ${String(config.allowNonLoopbackHost ?? false)}`,
+    ],
     '',
   ].join('\n'))
   const observing = { write: (chunk: string) => { observed.out += chunk; return true } }
@@ -134,11 +138,23 @@ describe('web command-line provider', () => {
     expect(observed.exits).toEqual([1])
   })
 
-  it('rejects the intentionally unsupported all-interfaces host before the consumer activates', async () => {
-    const { values, observed } = await bootProvider(['--host', '0.0.0.0'])
-    expect(observed.out).toContain('--host 0.0.0.0 is intentionally not supported yet for safety: it would expose remote code execution to the network; use 127.0.0.1 instead')
-    expect(values).toBeUndefined()
-    expect(observed.readerConfig).toBeUndefined()
-    expect(observed.exits).toEqual([1])
+  it('refuses the all-interfaces host while the composition mounts no authentication row', async () => {
+    // The refusal is about what an open bind exposes — an agent that runs
+    // shell commands — so it is the composition, not the flag, that lifts it.
+    for (const config of [undefined, { allowNonLoopbackHost: false }]) {
+      const { values, observed } = await bootProvider(['--host', '0.0.0.0'], config)
+      expect(observed.out).toContain('--host 0.0.0.0 is refused because this composition has no authentication row')
+      expect(observed.out).toContain('@deepseek-ai/dsh-host-web-auth')
+      expect(values).toBeUndefined()
+      expect(observed.readerConfig).toBeUndefined()
+      expect(observed.exits).toEqual([1])
+    }
+  })
+
+  it('accepts the all-interfaces host once the composition permits it', async () => {
+    const { values, observed } = await bootProvider(['--host', '0.0.0.0'], { allowNonLoopbackHost: true })
+    expect(observed.exits).toEqual([])
+    expect(values).toMatchObject({ host: '0.0.0.0' })
+    expect(observed.readerConfig).toMatchObject({ host: '0.0.0.0' })
   })
 })

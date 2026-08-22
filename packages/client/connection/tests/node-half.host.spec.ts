@@ -75,7 +75,13 @@ function fakeResponse(): { response: ServerResponse; state: { status?: number; b
   return { response, state }
 }
 
-async function mounted(config?: { trustedHosts?: string[] }): Promise<{
+async function mounted(config?: {
+  trustedHosts?: string[]
+  allowAuthenticatedPrivilegedMethods?: boolean
+}, options?: {
+  /** Mount a webAuth row treating requests carrying this cookie as authenticated. */
+  authenticatedCookie?: string
+}): Promise<{
   routes: WebRoute[]
   upgrades: WebUpgradeRoute[]
   dispose: () => Promise<void>
@@ -85,6 +91,17 @@ async function mounted(config?: { trustedHosts?: string[] }): Promise<{
   const upgrades: WebUpgradeRoute[] = []
   ctx.provide('webServer', fakeHttpServer(routes, upgrades) as WebServer)
   ctx.provide('apiProxy', {} as unknown as ApiProxy)
+  if (options?.authenticatedCookie !== undefined) {
+    const expected = options.authenticatedCookie
+    ctx.provide('webAuth', {
+      isAuthenticated: (request: { headers: Record<string, string> | Headers }) => {
+        const cookie = request.headers instanceof Headers
+          ? request.headers.get('cookie')
+          : request.headers.cookie
+        return cookie === expected
+      },
+    })
+  }
   const fiber = ctx.plugin({ inject: [...inject], apply }, config)
   await fiber.await()
   return { routes, upgrades, dispose: () => fiber.dispose() }
@@ -196,6 +213,84 @@ describe('connection node half', () => {
     await routes[0]!.handler(fakeRequest({ host: 'harness.example' }), read.response)
     expect(read.state.status).not.toBe(403)
     await dispose()
+  })
+
+  it('lets an authenticated request satisfy the Host fence with no declared authority', async () => {
+    const cookie = 'dsh_session=live'
+    const { routes, upgrades, dispose } = await mounted({}, { authenticatedCookie: cookie })
+    // No trustedHosts at all: without the session this Host is refused, and
+    // with it the bridge runs (404 from the empty proxy proves the fence passed).
+    const denied = fakeResponse()
+    await routes[0]!.handler(fakeRequest({ host: 'harness.example' }), denied.response)
+    expect(denied.state.status).toBe(403)
+
+    const admitted = fakeResponse()
+    await routes[0]!.handler(fakeRequest({ host: 'harness.example', cookie }), admitted.response)
+    expect(admitted.state.status).toBe(404)
+
+    // The WebSocket upgrade rides the same decision.
+    const chunks: Buffer[] = []
+    const socket = new PassThrough()
+    socket.on('data', (chunk: Buffer) => { chunks.push(chunk) })
+    await upgrades[0]!.handler(
+      fakeRequest({ host: 'harness.example', cookie }, MUX_EVENTS_PATH),
+      socket,
+      Buffer.alloc(0),
+    )
+    expect(Buffer.concat(chunks).toString()).not.toContain('403 Forbidden')
+    await dispose()
+  })
+
+  it('keeps the cross-site fence over an authenticated request', async () => {
+    const cookie = 'dsh_session=live'
+    const { routes, dispose } = await mounted({}, { authenticatedCookie: cookie })
+    // A session answers "is this Host ours", never "who initiated this fetch".
+    const crossSite = fakeResponse()
+    await routes[0]!.handler(fakeRequest({
+      host: 'harness.example', cookie, 'sec-fetch-site': 'cross-site',
+    }), crossSite.response)
+    expect(crossSite.state.status).toBe(403)
+
+    const foreignOrigin = fakeResponse()
+    await routes[0]!.handler(fakeRequest({
+      host: 'harness.example', cookie, origin: 'http://evil.example',
+    }), foreignOrigin.response)
+    expect(foreignOrigin.state.status).toBe(403)
+    await dispose()
+  })
+
+  it('admits an authenticated caller to the privileged plane, and pins it again when configured off', async () => {
+    const cookie = 'dsh_session=live'
+    const privileged = `${API_PATH}/settings.describe`
+
+    // Default: proving the deployment password is the same authority the
+    // loopback console already has, so the configuration plane opens.
+    const open = await mounted({}, { authenticatedCookie: cookie })
+    const allowed = fakeResponse()
+    await open.routes[0]!.handler(fakeRequest({ host: 'harness.example', cookie }, privileged), allowed.response)
+    expect(allowed.state.status).not.toBe(403)
+    await open.dispose()
+
+    // A deployment can keep that plane physically local even for
+    // authenticated users; ordinary methods stay reachable.
+    const pinned = await mounted(
+      { allowAuthenticatedPrivilegedMethods: false },
+      { authenticatedCookie: cookie },
+    )
+    const denied = fakeResponse()
+    await pinned.routes[0]!.handler(fakeRequest({ host: 'harness.example', cookie }, privileged), denied.response)
+    expect(denied.state.status).toBe(403)
+    const ordinary = fakeResponse()
+    await pinned.routes[0]!.handler(fakeRequest({ host: 'harness.example', cookie }), ordinary.response)
+    expect(ordinary.state.status).toBe(404)
+    await pinned.dispose()
+
+    // With no authentication row mounted the pin stands regardless of the flag.
+    const unauthenticated = await mounted({ trustedHosts: ['harness.example'] })
+    const stillDenied = fakeResponse()
+    await unauthenticated.routes[0]!.handler(fakeRequest({ host: 'harness.example' }, privileged), stillDenied.response)
+    expect(stillDenied.state.status).toBe(403)
+    await unauthenticated.dispose()
   })
 
   it('passes loopback and declared-authority requests through to the bridge', async () => {

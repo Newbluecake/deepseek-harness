@@ -9,8 +9,12 @@
  * still be a rebound browser read and Host is the one header rebinding cannot
  * forge. Non-browser and remote clients pass the same fence via loopback,
  * deployment-derived LAN IP literals, or a declared `trustedHosts` authority.
- * Network reachability and authentication stay out of scope: binding policy
- * belongs to the webserver config, and this fence is not an auth layer.
+ * A deployment that mounts an authentication layer has a fourth route: a
+ * request already bound to a session that layer issued satisfies the Host
+ * fence on its own, because such a credential is origin-bound and a rebound
+ * page cannot present it. Network reachability stays out of scope — binding
+ * policy belongs to the webserver config, and this fence is not itself an
+ * auth layer.
  */
 
 import type { IncomingHttpHeaders } from 'node:http'
@@ -91,9 +95,16 @@ function isTrustedAuthority(hostUrl: URL, trustedHosts: readonly string[]): bool
  * Decide whether one /api request may reach the RPC bridge.
  * @param request - Node HTTP or Fetch request facts (headers).
  * @param trustedHosts - non-loopback authorities this deployment serves: exact `host:port`, or port-less `host` matching any port.
- * @returns true when the Host is ours (loopback or trusted) and any attached browser markers are same-origin.
+ * @param authenticated - whether an authentication layer bound this request
+ * to a session it issued; this satisfies the Host fence without a declared
+ * authority.
+ * @returns true when the Host is ours (loopback, trusted, or authenticated) and any attached browser markers are same-origin.
  */
-export function isTrustedApiRequest(request: ApiTrustRequest, trustedHosts: readonly string[]): boolean {
+export function isTrustedApiRequest(
+  request: ApiTrustRequest,
+  trustedHosts: readonly string[],
+  authenticated = false,
+): boolean {
   // Host fence (DNS-rebinding defense), applied to every request: the browser
   // fills Host from the URL it believes it is talking to, so a rebound page
   // carries the attacker's domain here even though the socket lands on this
@@ -101,11 +112,17 @@ export function isTrustedApiRequest(request: ApiTrustRequest, trustedHosts: read
   // (images and navigations) arrives with neither Origin nor
   // Fetch-Metadata, indistinguishable from curl, and its response is readable
   // by the rebound page.
+  //
+  // An authenticated request is exempt because presenting a session this
+  // server issued is itself proof the request is not rebound: the session
+  // credential is bound to our own origin, so a page served from the
+  // attacker's domain sends that domain's cookies and can never carry ours.
+  // The cross-site and Origin fences below still apply.
   const host = header(request.headers, 'host')
   if (host === undefined) return false
   const hostUrl = parseAuthority(host)
   if (hostUrl === undefined) return false
-  if (!isLoopbackHostname(hostUrl.hostname) && !isTrustedAuthority(hostUrl, trustedHosts)) return false
+  if (!authenticated && !isLoopbackHostname(hostUrl.hostname) && !isTrustedAuthority(hostUrl, trustedHosts)) return false
   // Cross-site fence: modern browsers label the initiator relationship on
   // every fetch; an explicit cross-site marker is refused regardless of Origin.
   if (header(request.headers, 'sec-fetch-site') === 'cross-site') return false

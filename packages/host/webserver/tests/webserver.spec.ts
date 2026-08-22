@@ -28,13 +28,13 @@ afterEach(async () => {
 })
 
 /** Write a cordis.yml with one webserver row, then boot it through the real Loader. */
-async function loadComposition(port = 0): Promise<Context> {
+async function loadComposition(port = 0, host: '127.0.0.1' | '0.0.0.0' = '127.0.0.1'): Promise<Context> {
   root = await mkdtemp(join(tmpdir(), 'dsh-webserver-loader-'))
   const configPath = join(root, 'cordis.yml')
   await writeFile(configPath, [
     "- name: '@deepseek-ai/dsh-host-webserver'",
     '  config:',
-    "    host: '127.0.0.1'",
+    `    host: '${host}'`,
     `    port: ${String(port)}`,
     '',
   ].join('\n'))
@@ -246,6 +246,149 @@ describe('real Loader composition', () => {
       { kind: 'script', placement: 'head', text: 'H' },
       { kind: 'script', placement: 'body', text: 'B' },
     ])).toBe('<script>H</script><main>x</main><script>B</script>')
+  })
+
+  it('consults the admission gate before every route, the fallback, and every upgrade', { timeout: 60_000 }, async () => {
+    const loaded = await loadComposition()
+    const server = loaded.webServer
+    const port = server.port
+
+    server.register({ kind: 'exact', path: '/probe', handler: (_req, res) => { res.writeHead(200); res.end('EXACT') } })
+    server.registerFallback((_req, res) => { res.writeHead(200); res.end('SHELL') })
+    server.registerUpgrade({
+      path: '/events',
+      handler: (_req, socket) => {
+        socket.write('HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: dsh-test\r\n\r\n')
+      },
+    })
+
+    // Ungated: everything dispatches, which is the composition without an
+    // authentication row.
+    expect(await request(port, '/probe')).toMatchObject({ status: 200, body: 'EXACT' })
+    expect(await request(port, '/anything')).toMatchObject({ status: 200, body: 'SHELL' })
+    ;(await upgrade(port, '/events')).destroy()
+
+    // A refusing gate answers instead of dispatching, and covers the named
+    // route AND the fallback — the whole site, not just the API.
+    let admit = false
+    const releaseGate = server.registerGate({
+      http: (req, res) => {
+        if (admit) return true
+        res.writeHead(401, { 'content-type': 'text/plain' })
+        res.end(`denied ${req.url ?? ''}`)
+        return false
+      },
+      upgrade: () => admit,
+    })
+    expect(await request(port, '/probe')).toMatchObject({ status: 401, body: 'denied /probe' })
+    expect(await request(port, '/anything')).toMatchObject({ status: 401, body: 'denied /anything' })
+
+    // A refused upgrade is destroyed rather than answered: there is no
+    // response to render on a socket the client already switched protocols on.
+    const refused = connect(port, '127.0.0.1')
+    refused.on('error', () => { /* server-side reset is the fixture outcome */ })
+    await once(refused, 'connect')
+    const refusedClosed = once(refused, 'close')
+    refused.write([
+      'GET /events HTTP/1.1', `Host: 127.0.0.1:${String(port)}`,
+      'Connection: Upgrade', 'Upgrade: dsh-test', '', '',
+    ].join('\r\n'))
+    await refusedClosed
+
+    // An admitting gate dispatches normally on all three paths.
+    admit = true
+    expect(await request(port, '/probe')).toMatchObject({ status: 200, body: 'EXACT' })
+    expect(await request(port, '/anything')).toMatchObject({ status: 200, body: 'SHELL' })
+    ;(await upgrade(port, '/events')).destroy()
+
+    // One owner only, and the disposer restores an open server plus registrability.
+    expect(() => server.registerGate({ http: () => true, upgrade: () => true }))
+      .toThrow(/gate already registered/)
+    releaseGate()
+    admit = false
+    expect(await request(port, '/probe')).toMatchObject({ status: 200, body: 'EXACT' })
+    expect(() => server.registerGate({ http: () => true, upgrade: () => true })).not.toThrow()
+  })
+
+  it('refuses everything on a non-loopback bind until the admission seat is claimed', { timeout: 60_000 }, async () => {
+    // Binding all interfaces is still reachable over loopback, so the request
+    // side of the fixture is unchanged; only the published bind differs.
+    const loaded = await loadComposition(0, '0.0.0.0')
+    const server = loaded.webServer
+    const port = server.port
+    expect(server.host).toBe('0.0.0.0')
+
+    server.register({ kind: 'exact', path: '/probe', handler: (_req, res) => { res.writeHead(200); res.end('EXACT') } })
+    server.registerFallback((_req, res) => { res.writeHead(200); res.end('SHELL') })
+    server.registerUpgrade({
+      path: '/events',
+      handler: (_req, socket) => {
+        socket.write('HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: dsh-test\r\n\r\n')
+      },
+    })
+
+    // Ungated and published: the named route and the fallback are both
+    // refused, so no dist and no API reach the network.
+    const refusedRoute = await request(port, '/probe')
+    expect(refusedRoute.status).toBe(503)
+    expect(refusedRoute.body).toContain('non-loopback bind requires an authentication row')
+    expect(await request(port, '/anything')).toMatchObject({ status: 503 })
+
+    // An upgrade has no response to render, so it is destroyed.
+    const refusedSocket = connect(port, '127.0.0.1')
+    refusedSocket.on('error', () => { /* server-side reset is the fixture outcome */ })
+    await once(refusedSocket, 'connect')
+    const refusedClosed = once(refusedSocket, 'close')
+    refusedSocket.write([
+      'GET /events HTTP/1.1', `Host: 127.0.0.1:${String(port)}`,
+      'Connection: Upgrade', 'Upgrade: dsh-test', '', '',
+    ].join('\r\n'))
+    await refusedClosed
+
+    // Claiming the seat opens the same server, and releasing it closes it
+    // again: the refusal tracks the live registration, not a boot-time snapshot.
+    const releaseGate = server.registerGate({ http: () => true, upgrade: () => true })
+    expect(await request(port, '/probe')).toMatchObject({ status: 200, body: 'EXACT' })
+    expect(await request(port, '/anything')).toMatchObject({ status: 200, body: 'SHELL' })
+    ;(await upgrade(port, '/events')).destroy()
+
+    releaseGate()
+    expect(await request(port, '/probe')).toMatchObject({ status: 503 })
+  })
+
+  it('leaves an ungated loopback bind open, because reaching it already means local access', { timeout: 60_000 }, async () => {
+    const loaded = await loadComposition()
+    const server = loaded.webServer
+    expect(server.host).toBe('127.0.0.1')
+    server.register({ kind: 'exact', path: '/probe', handler: (_req, res) => { res.writeHead(200); res.end('EXACT') } })
+    expect(await request(server.port, '/probe')).toMatchObject({ status: 200, body: 'EXACT' })
+  })
+
+  it('contains a gate that throws, without leaking the failure to the socket owner', { timeout: 60_000 }, async () => {
+    const loaded = await loadComposition()
+    const server = loaded.webServer
+    const port = server.port
+    server.register({ kind: 'exact', path: '/probe', handler: (_req, res) => { res.writeHead(200); res.end('EXACT') } })
+    server.registerGate({
+      http: () => { throw new Error('gate failure') },
+      upgrade: () => { throw new Error('gate upgrade failure') },
+    })
+
+    // A failing gate must not dispatch: the request is contained as a 400 by
+    // the same per-request guard that covers handlers, so a broken policy
+    // fails closed rather than admitting.
+    expect((await request(port, '/probe')).status).toBe(400)
+
+    server.registerUpgrade({ path: '/events', handler: (_req, socket) => { socket.write('HTTP/1.1 101 OK\r\n\r\n') } })
+    const socket = connect(port, '127.0.0.1')
+    socket.on('error', () => { /* server-side reset is the fixture outcome */ })
+    await once(socket, 'connect')
+    const closed = once(socket, 'close')
+    socket.write([
+      'GET /events HTTP/1.1', `Host: 127.0.0.1:${String(port)}`,
+      'Connection: Upgrade', 'Upgrade: dsh-test', '', '',
+    ].join('\r\n'))
+    await closed
   })
 
   it('fails the fiber when the port is already taken (fail-loud at activation)', { timeout: 60_000 }, async () => {

@@ -27,6 +27,9 @@
       "path": "../../host/webserver"
     },
     {
+      "path": "../../host/web-auth"
+    },
+    {
       "path": "../../runtime-diagnostics/invariants"
     }
   ]

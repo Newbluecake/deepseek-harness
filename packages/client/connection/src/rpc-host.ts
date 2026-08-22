@@ -1,5 +1,6 @@
 /** Host registry and HTTP adapter for generic Connection RPC channels. */
 
+import type { IncomingHttpHeaders } from 'node:http'
 import { Context, Service } from '@deepseek-ai/cordis'
 import type { WebRoute } from '@deepseek-ai/dsh-host-webserver'
 import {
@@ -47,8 +48,14 @@ export class HostConnectionService extends Service implements HostConnectionHand
    * Provide the Host half over the active HTTP server.
    * @param ctx - owning Connection plugin context.
    * @param trustedHosts - deployment authorities accepted by trusted-host channels.
+   * @param authenticated - whether a request carries a session issued by the
+   * deployment's authentication row; this satisfies the Host fence.
    */
-  constructor(ctx: Context, private readonly trustedHosts: readonly string[]) {
+  constructor(
+    ctx: Context,
+    private readonly trustedHosts: readonly string[],
+    private readonly authenticated: (request: { headers: IncomingHttpHeaders | Headers }) => boolean = () => false,
+  ) {
     super(ctx, 'connection')
   }
 
@@ -79,6 +86,11 @@ export class HostConnectionService extends Service implements HostConnectionHand
         if (endpoint === undefined || interceptor === undefined || !interceptor.matches(endpoint)) {
           return fallback.fetch(request)
         }
+        // A 'loopback' channel stays pinned to the machine even for an
+        // authenticated caller: unlike the privileged method list, this
+        // authority is chosen per channel by its own registrant, so honoring an
+        // authentication row here would silently relax a policy that
+        // registrant declared without knowing one existed.
         if (interceptor.options.authority === 'loopback' && !isTrustedApiRequest(request, [])) {
           return Promise.resolve(new Response('forbidden', { status: 403 }))
         }
@@ -94,13 +106,14 @@ export class HostConnectionService extends Service implements HostConnectionHand
     options: ConnectionRpcHandlerOptions,
   ): () => Promise<void> {
     assertChannel(channel)
-    const trustedHosts = options.authority === 'loopback' ? [] : this.trustedHosts
+    const loopbackOnly = options.authority === 'loopback'
+    const trustedHosts = loopbackOnly ? [] : this.trustedHosts
     const fetchHandler = rpcFetchHandler(channel, handler)
     const route: WebRoute = {
       kind: 'prefix',
       path: channel,
       handler: async (req, res) => {
-        if (!isTrustedApiRequest(req, trustedHosts)) {
+        if (!isTrustedApiRequest(req, trustedHosts, !loopbackOnly && this.authenticated(req))) {
           res.writeHead(403)
           res.end('forbidden')
           return

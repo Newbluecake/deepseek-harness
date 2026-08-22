@@ -1,9 +1,13 @@
 /** Host HTTP bridge for browser-client RPC. */
+import type { IncomingHttpHeaders } from 'node:http'
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import type {} from '@deepseek-ai/dsh-attachment'
 // Activates the webServer Context merge used below.
 import type { WebRoute, WebUpgradeRoute } from '@deepseek-ai/dsh-host-webserver'
+// Activates the optional `webAuth` Context merge; this package is a Consumer of
+// that seam and never mounts a provider for it.
+import type {} from '@deepseek-ai/dsh-host-web-auth'
 import { toFetchHandler } from '@deepseek-ai/dsh-host-apiproxy'
 import { API_PATH, HOST_EVENTS_PATH, MUX_EVENTS_PATH } from './api-path.ts'
 import { bridge, DEFAULT_MAX_REQUEST_BODY_BYTES } from './http-bridge.ts'
@@ -55,15 +59,34 @@ export interface ConnectionConfig {
    * non-loopback (`0.0.0.0`) deployment must declare the names it is reached
    * by (the dsh CLI derives the machine's LAN IP literals itself). An entry
    * that is not a bare, canonical authority fails the plugin load.
+   *
+   * A deployment mounting an authentication row need not list its names: an
+   * authenticated request satisfies the same fence on its own.
    */
   trustedHosts?: string[]
   /** Maximum buffered JSON body for every `/api` request. Default: 300 MiB. */
   maxRequestBodyBytes?: number
+  /**
+   * Whether an authenticated non-loopback caller may invoke
+   * {@link PRIVILEGED_METHODS} — the configuration plane (settings,
+   * credentials, preset management, host dialogs, endpoint interrogation).
+   *
+   * Those methods are pinned to loopback whenever this deployment has no
+   * authentication layer, because `trustedHosts` is a rebinding fence rather
+   * than proof of who is calling. Once a `webAuth` row is mounted the caller
+   * has proven they hold the deployment's password, which is the authority an
+   * operator at the loopback console already has — so the default admits them,
+   * and a deployment wanting its configuration plane to stay physically local
+   * turns this off. With no authentication row mounted the flag changes
+   * nothing: the pin stands either way.
+   */
+  allowAuthenticatedPrivilegedMethods?: boolean
 }
 
 export const Config: z<ConnectionConfig> = z.object({
   trustedHosts: z.array(String).default([]),
   maxRequestBodyBytes: z.natural().min(1).default(DEFAULT_MAX_REQUEST_BODY_BYTES),
+  allowAuthenticatedPrivilegedMethods: z.boolean().default(true),
 })
 
 /**
@@ -131,11 +154,16 @@ export function apply(ctx: Context, config?: ConnectionConfig): void {
   // The Loader resolves schema defaults; hand-built test contexts may pass none.
   const trustedHosts = config?.trustedHosts ?? []
   const maxRequestBodyBytes = config?.maxRequestBodyBytes ?? DEFAULT_MAX_REQUEST_BODY_BYTES
+  const allowAuthenticatedPrivilegedMethods = config?.allowAuthenticatedPrivilegedMethods ?? true
   // Config boundary: a malformed entry fails the load loudly here rather than
   // silently authorizing its hostname prefix at request time.
   for (const entry of trustedHosts) assertTrustedAuthority(entry)
   if (ctx.get('apiProxy') !== undefined) assertImageBodyCapacity(ctx, maxRequestBodyBytes)
-  const connection = new HostConnectionService(ctx, trustedHosts)
+  // Resolved per request, not at apply: the authentication row may activate
+  // after this one, and a row disposed mid-run must stop granting trust.
+  const authenticated = (request: { headers: IncomingHttpHeaders | Headers }): boolean =>
+    ctx.get('webAuth')?.isAuthenticated(request) ?? false
+  const connection = new HostConnectionService(ctx, trustedHosts, authenticated)
   const fetchHandler = connection.createSharedFetchHandler(API_PATH, {
     async fetch(request) {
       const pathname = new URL(request.url).pathname
@@ -144,7 +172,7 @@ export function apply(ctx: Context, config?: ConnectionConfig): void {
         : undefined
       if (method !== undefined
         && PRIVILEGED_METHODS.has(method)
-        && !isTrustedApiRequest(request, [])) {
+        && !isTrustedApiRequest(request, [], allowAuthenticatedPrivilegedMethods && authenticated(request))) {
         return new Response('forbidden', { status: 403 })
       }
       if (request.method === 'GET' && (pathname === MUX_EVENTS_PATH || pathname === HOST_EVENTS_PATH)) {
@@ -162,7 +190,7 @@ export function apply(ctx: Context, config?: ConnectionConfig): void {
     kind: 'prefix',
     path: API_PATH,
     handler: async (req, res) => {
-      if (!isTrustedApiRequest(req, trustedHosts)) {
+      if (!isTrustedApiRequest(req, trustedHosts, authenticated(req))) {
         res.writeHead(403)
         res.end('forbidden')
         return
@@ -181,7 +209,7 @@ export function apply(ctx: Context, config?: ConnectionConfig): void {
       apiCtx.effect(() => apiCtx.webServer.registerUpgrade({
         path,
         handler: (req, socket, head) => {
-          if (!isTrustedApiRequest(req, trustedHosts)) {
+          if (!isTrustedApiRequest(req, trustedHosts, authenticated(req))) {
             rejectWebSocketUpgrade(socket)
             return
           }

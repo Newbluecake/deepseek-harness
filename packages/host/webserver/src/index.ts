@@ -1,7 +1,8 @@
 /**
  * @deepseek-ai/dsh-host-webserver — Web route-registration plugin: a node:http
  * server plus the `webServer` service (HTTP and upgrade route registries, the
- * structured index injection table with raw transform taps behind it, and the
+ * single admission seat in front of both, the structured index injection table
+ * with raw transform taps behind it, and the
  * single fallback seat for everything no route claims). Knows no harness concepts and serves no files; the composing
  * application's frontend plugin owns dist serving through the fallback hook.
  * Web shape only — Electron loads dist over file:// and carries fetch over an
@@ -55,6 +56,32 @@ export interface WebUpgradeRoute {
   handler: (req: IncomingMessage, socket: Duplex, head: Buffer) => void | Promise<void>
 }
 
+/**
+ * The single admission owner in front of every route, fallback, and upgrade.
+ *
+ * A gate is the one place that sees all three dispatch paths, so a deployment
+ * policy expressed here cannot be bypassed by a route registered later or by
+ * an upgrade that no HTTP route covers. `http` answers the request itself when
+ * it refuses (a redirect, a login page, a 401); returning `false` after
+ * answering means dispatch stops. `upgrade` only decides — the carrier
+ * destroys a refused socket, because an upgrade has no response to render.
+ */
+export interface WebGate {
+  /**
+   * Admit or answer one HTTP request before route matching.
+   * @param req - the incoming request.
+   * @param res - the response, which a refusal owns and must end.
+   * @returns true to dispatch normally; false when this gate answered.
+   */
+  http: (req: IncomingMessage, res: ServerResponse) => boolean | Promise<boolean>
+  /**
+   * Admit one HTTP upgrade before upgrade-route matching.
+   * @param req - the upgrade request.
+   * @returns true to dispatch normally; false to destroy the socket.
+   */
+  upgrade: (req: IncomingMessage) => boolean | Promise<boolean>
+}
+
 /** Gateway config: the listen address. */
 export interface Config {
   /** Listen host; the two supported values are loopback and all-interfaces. */
@@ -69,6 +96,10 @@ export interface Config {
  * must be distinct, and the fallback handler answers anything not yet claimed
  * during startup with 404 until its owner registers. A listen failure rejects
  * initialization, and the boot process reports the failed fiber.
+ *
+ * A non-loopback bind refuses every request and destroys every upgrade while
+ * the {@link WebGate} seat is empty, so publishing this server to the network
+ * without an authentication row serves nothing.
  */
 export class WebServer extends Service {
   static Config: z<Config> = z.object({
@@ -82,6 +113,7 @@ export class WebServer extends Service {
   private readonly upgradedSockets = new Set<Duplex>()
   private readonly indexTaps: ((html: string) => string)[] = []
   private fallback: WebRoute['handler'] | undefined
+  private gate: WebGate | undefined
   private server!: Server
   private listenedPort!: number
 
@@ -159,9 +191,53 @@ export class WebServer extends Service {
     }
   }
 
+  /**
+   * Claim the admission seat: the {@link WebGate} consulted before every named
+   * route, the fallback, and every upgrade. One owner only — a second
+   * registration throws, because two admission policies cannot compose into a
+   * single decision.
+   *
+   * An ungated server dispatches every request it accepts, so this seat is
+   * what a composition must fill before widening the bind: the shipped Web
+   * composition serves loopback ungated, where the operator at the console is
+   * already the trust boundary, and refuses a non-loopback bind until an
+   * authentication row claims this seat.
+   * @param gate - the admission policy owning refusal responses.
+   * @returns the disposer releasing the seat.
+   */
+  registerGate(gate: WebGate): () => void {
+    if (this.gate !== undefined) {
+      throw new Error('webserver: gate already registered')
+    }
+    this.gate = gate
+    return () => { this.gate = undefined }
+  }
+
+  /**
+   * Whether this server must refuse every request for lack of an admission owner.
+   *
+   * A loopback bind is reachable only by someone already on the machine, so an
+   * ungated loopback server stays open. A non-loopback bind publishes the same
+   * dispatch to the network, where "no gate" means "no authentication" — so it
+   * is refused here rather than served. Because the seat can be claimed and
+   * released at runtime, this is read per request: registering a gate opens
+   * the server and disposing that registration closes it again.
+   */
+  private get closedForMissingGate(): boolean {
+    return this.gate === undefined && this.config.host !== '127.0.0.1'
+  }
+
   /** Listen; resolves once the socket is bound (rejection = FAILED fiber). */
   async [Service.init](): Promise<void> {
     const handle = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
+      if (this.closedForMissingGate) {
+        res.writeHead(503, { 'content-type': 'text/plain; charset=utf-8' })
+        res.end('web server unavailable: a non-loopback bind requires an authentication row')
+        return
+      }
+      // Admission precedes matching so a gate covers routes registered after
+      // it, and the static fallback, without either knowing a gate exists.
+      if (this.gate !== undefined && !await this.gate.http(req, res)) return
       /* v8 ignore next -- `?? '/'` arm: node:http always sets url on server
       requests; the field is only optional on the client-side IncomingMessage type */
       const rawPath = new URL(req.url ?? '/', 'http://x').pathname
@@ -203,29 +279,30 @@ export class WebServer extends Service {
         socket.off('error', onError)
         this.upgradedSockets.delete(socket)
       })
-      let route: WebUpgradeRoute | undefined
-      try {
-        /* v8 ignore next -- node:http always sets url on server requests. */
-        route = this.upgrades.get(new URL(req.url ?? '/', 'http://x').pathname)
-      } catch (error) {
-        this.ctx.logger.warn(error instanceof Error ? error : new Error(String(error)))
-        socket.destroy()
-        return
-      }
-      if (route === undefined) {
-        socket.destroy()
-        return
-      }
-      this.upgradedSockets.add(socket)
-      try {
-        Promise.resolve(route.handler(req, socket, head)).catch((error: unknown) => {
-          this.ctx.logger.warn(error instanceof Error ? error : new Error(String(error)))
+      const dispatch = async (): Promise<void> => {
+        // A refused upgrade has no response to render, so the gate only
+        // decides and the carrier destroys the socket.
+        if (this.closedForMissingGate) {
           socket.destroy()
-        })
-      } catch (error) {
+          return
+        }
+        if (this.gate !== undefined && !await this.gate.upgrade(req)) {
+          socket.destroy()
+          return
+        }
+        /* v8 ignore next -- node:http always sets url on server requests. */
+        const route = this.upgrades.get(new URL(req.url ?? '/', 'http://x').pathname)
+        if (route === undefined) {
+          socket.destroy()
+          return
+        }
+        this.upgradedSockets.add(socket)
+        await route.handler(req, socket, head)
+      }
+      dispatch().catch((error: unknown) => {
         this.ctx.logger.warn(error instanceof Error ? error : new Error(String(error)))
         socket.destroy()
-      }
+      })
     })
 
     await new Promise<void>((resolve, reject) => {

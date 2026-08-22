@@ -105,4 +105,34 @@ describe('isTrustedApiRequest', () => {
     expect(isTrustedApiRequest(request({ ...markers, host: '127.0.0.999' }), [])).toBe(false)
     expect(isTrustedApiRequest(request({ ...markers, host: '128.0.0.1' }), [])).toBe(false)
   })
+
+  it('lets an authenticated request satisfy the Host fence without a declared authority', () => {
+    // The session credential is origin-bound: a page served from the
+    // attacker's rebound domain sends that domain's cookies and can never
+    // present ours, so proving a session is proving the request is not
+    // rebound. This is what lets an authenticated deployment skip
+    // --trusted-host entirely.
+    const headers = { host: 'harness.example:3080', origin: 'http://harness.example:3080' }
+    expect(isTrustedApiRequest(request(headers), [])).toBe(false)
+    expect(isTrustedApiRequest(request(headers), [], true)).toBe(true)
+  })
+
+  it('keeps the cross-site and Origin fences over an authenticated request', () => {
+    // Authentication answers "is this host ours"; it says nothing about who
+    // initiated the fetch, so a session must not buy passage past the
+    // cross-site defense.
+    expect(isTrustedApiRequest(request({
+      host: 'harness.example:3080', origin: 'http://evil.example',
+    }), [], true)).toBe(false)
+    expect(isTrustedApiRequest(request({
+      host: 'harness.example:3080', 'sec-fetch-site': 'cross-site',
+    }), [], true)).toBe(false)
+    expect(isTrustedApiRequest(request({
+      host: 'harness.example:3080', origin: 'null',
+    }), [], true)).toBe(false)
+    // A malformed or absent Host is still refused: the fence needs an
+    // authority to compare an Origin against.
+    expect(isTrustedApiRequest(request({}), [], true)).toBe(false)
+    expect(isTrustedApiRequest(request({ host: 'bad host' }), [], true)).toBe(false)
+  })
 })
