@@ -260,6 +260,7 @@ export function FileExplorer({
   const [searching, setSearching] = useState(false)
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const searchToken = useRef(0)
+  const listRef = useRef<HTMLDivElement | null>(null)
 
   const loadRoot = (): void => {
     setRootState({ loading: true, path: null, error: null })
@@ -384,6 +385,13 @@ export function FileExplorer({
     if (searchTimer.current !== null) clearTimeout(searchTimer.current)
   }, [])
 
+  // After a locate, scroll the highlighted file into view.
+  useEffect(() => {
+    if (locatePath === null) return
+    const target = listRef.current?.querySelector('[aria-current="location"]')
+    target?.scrollIntoView?.({ block: 'center' })
+  }, [locatePath])
+
   const q = query.trim().toLowerCase()
   const searchingActive = searching || (q !== '' && searchMatches === null)
   const rows: JSX.Element[] = []
@@ -486,7 +494,7 @@ export function FileExplorer({
             {query !== '' && <button type="button" className={css.searchClear} title="清除" onClick={() => { onSearchChange('') }}><ClearIcon /></button>}
           </div>
           {rootState.path !== null && <div className={css.rootPath} title={rootState.path}>{rootState.path}</div>}
-          <div className={css.list}>{rows}</div>
+          <div ref={listRef} className={css.list}>{rows}</div>
         </>
       )}
       {panel === 'diff' && <GitChangesViewer sessionId={sessionId} gitStatus={gitStatus} openFileDiff={(path, scope) => { actions.setOpenFileDiff({ path, scope }) }} locateFile={locateFile} />}
