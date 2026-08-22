@@ -13,7 +13,7 @@ import type {
   TerminalInjected,
   TerminalOutputPayload,
 } from './contract/slots.ts'
-import css from './TerminalPanel.module.css'
+import css from './TerminalDock.module.css'
 
 export interface TerminalViewProps {
   /** The owning workspace session (agent scope for the Remote calls). */
@@ -27,6 +27,8 @@ export interface TerminalViewProps {
   readTerminal: TerminalInjected['readTerminal']
   resizeTerminal: TerminalInjected['resizeTerminal']
   onTerminalOutput: TerminalInjected['onTerminalOutput']
+  /** Reports the height delta to snap the window so the terminal leaves a 3px bottom gutter. */
+  onFitDelta?: (delta: number) => void
 }
 
 /**
@@ -34,8 +36,12 @@ export interface TerminalViewProps {
  * @param props - the session identity, focus flag, and injected actions.
  * @returns the emulator container element.
  */
-export function TerminalView({ agentSessionId, terminalId, active, writeTerminal, readTerminal, resizeTerminal, onTerminalOutput }: TerminalViewProps) {
+export function TerminalView({
+  agentSessionId, terminalId, active, writeTerminal, readTerminal, resizeTerminal, onTerminalOutput, onFitDelta,
+}: TerminalViewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const onFitDeltaRef = useRef(onFitDelta)
+  onFitDeltaRef.current = onFitDelta
 
   useEffect(() => {
     const container = containerRef.current
@@ -58,6 +64,24 @@ export function TerminalView({ agentSessionId, terminalId, active, writeTerminal
       void resizeTerminal(agentSessionId, { sessionId: terminalId, cols: term.cols, rows: term.rows })
     }
     syncSize()
+
+    // Snap the window height to whole rows plus a 3px bottom gutter. Debounced:
+    // a resize drag produces a stream of fit events, and the snap only fires
+    // after the drag settles.
+    let snapTimer: ReturnType<typeof setTimeout> | undefined
+    const scheduleSnap = (): void => {
+      const onFitDelta = onFitDeltaRef.current
+      if (onFitDelta === undefined) return
+      if (snapTimer !== undefined) clearTimeout(snapTimer)
+      snapTimer = setTimeout(() => {
+        const rows = container.querySelector('.xterm-rows')
+        const body = container.parentElement
+        if (rows === null || body === null) return
+        const delta = rows.getBoundingClientRect().height + 6 - body.getBoundingClientRect().height
+        onFitDelta(delta)
+      }, 200)
+    }
+    scheduleSnap()
 
     // Buffer live chunks until the scrollback cursor is known, then apply only
     // chunks newer than the restored cursor so nothing renders twice.
@@ -98,11 +122,13 @@ export function TerminalView({ agentSessionId, terminalId, active, writeTerminal
       fit.fit()
       if (resizeTimer !== undefined) clearTimeout(resizeTimer)
       resizeTimer = setTimeout(syncSize, 150)
+      scheduleSnap()
     })
     observer.observe(container)
 
     return () => {
       if (resizeTimer !== undefined) clearTimeout(resizeTimer)
+      if (snapTimer !== undefined) clearTimeout(snapTimer)
       observer.disconnect()
       offOutput()
       dataSub.dispose()

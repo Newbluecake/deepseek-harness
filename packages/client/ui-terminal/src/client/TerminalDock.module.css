@@ -1,0 +1,364 @@
+/* Global Terminal Dock: a fixed bottom-right macOS-style icon with a count
+   badge, a popup list of every live terminal, and draggable floating windows.
+   The windows render in z-ascending DOM order (no z-index) so the last one
+   paints on top; the Dock UI sits above them on the overlay layer's scale. */
+
+/* --- Dock icon --- */
+
+.dock {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 1050;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 16px;
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-brand-primary);
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.24);
+  pointer-events: auto;
+}
+
+.dock:hover {
+  background: var(--dsw-alias-bg-layer-2);
+}
+
+.dock:focus-visible {
+  outline: 2px solid var(--dsw-alias-brand-primary);
+  outline-offset: 2px;
+}
+
+.dockBadge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--dsw-alias-state-error-primary, #ef4444);
+  color: #ffffff;
+  font-size: 11px;
+  line-height: 18px;
+  font-weight: 600;
+  text-align: center;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+/* --- Popup list --- */
+
+.dockBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1060;
+  background: transparent;
+  pointer-events: auto;
+}
+
+.dockMenu {
+  position: fixed;
+  right: 20px;
+  bottom: 84px;
+  z-index: 1070;
+  width: 340px;
+  max-height: min(420px, calc(100vh - 120px));
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 14px;
+  background: var(--dsw-alias-bg-layer-1);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.32);
+  overflow: hidden;
+  pointer-events: auto;
+}
+
+.dockMenuHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--dsw-alias-border-l1);
+  background: var(--dsw-alias-bg-layer-2);
+  flex: none;
+}
+
+.dockMenuTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--dsw-alias-label-primary);
+}
+
+.dockMenuActions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+
+.dockToggleBtn {
+  padding: 5px 10px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.dockToggleBtn:hover {
+  background: var(--dsw-alias-bg-layer-2);
+  color: var(--dsw-alias-label-primary);
+}
+
+.dockNewBtn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-primary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.dockNewBtn:hover:not(:disabled) {
+  background: var(--dsw-alias-bg-layer-2);
+}
+
+.dockNewBtn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.dockList {
+  overflow-y: auto;
+  padding: 6px;
+}
+
+.dockEmpty {
+  padding: 28px 16px;
+  text-align: center;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 13px;
+}
+
+.dockItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 9px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.dockItem:hover {
+  background: var(--dsw-alias-bg-layer-2);
+}
+
+.dockItem:focus-visible {
+  outline: 2px solid var(--dsw-alias-brand-primary);
+  outline-offset: -2px;
+}
+
+.dockItemDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--dsw-alias-state-success-primary, #22c55e);
+  flex: none;
+}
+
+.dockItemDotExited {
+  background: var(--dsw-alias-border-l2);
+}
+
+.dockItemMain {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dockItemName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  color: var(--dsw-alias-label-primary);
+}
+
+.dockItemMeta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.dockItemEdit {
+  padding: 1px 4px;
+  border: 1px solid var(--dsw-alias-brand-primary);
+  border-radius: 4px;
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-primary);
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+}
+
+.dockItemClose {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+  flex: none;
+}
+
+.dockItemClose:hover {
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-state-error-primary);
+}
+
+/* --- Floating windows --- */
+
+.window {
+  position: fixed;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 12px;
+  background: var(--dsw-alias-bg-layer-1);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.32);
+  overflow: hidden;
+}
+
+.windowHidden {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.windowBar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--dsw-alias-border-l1);
+  background: var(--dsw-alias-bg-layer-2);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  flex: none;
+}
+
+.windowBar:active {
+  cursor: grabbing;
+}
+
+.windowDot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--dsw-alias-state-success-primary, #22c55e);
+  flex: none;
+}
+
+.windowDotExited {
+  background: var(--dsw-alias-border-l2);
+}
+
+.windowTitle {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+  font-size: 12px;
+  color: var(--dsw-alias-label-primary);
+}
+
+.windowLights {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 2px;
+  flex: none;
+}
+
+.light {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 12px;
+  height: 12px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  color: rgba(0, 0, 0, 0.55);
+  flex: none;
+}
+
+/* The fixed macOS traffic-light palette, an OS design constant rather than a theme token. */
+.lightClose { background: #ff5f57; }
+.lightMin { background: #febc2e; }
+.lightMax { background: #28c840; }
+
+/* Symbols appear on group hover, matching macOS Catalina and later. */
+.light svg { opacity: 0; }
+.windowLights:hover .light svg { opacity: 1; }
+
+.light:focus-visible {
+  outline: 2px solid var(--dsw-alias-brand-primary);
+  outline-offset: 1px;
+}
+
+.windowBody {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.windowResize {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 16px;
+  height: 16px;
+  cursor: nwse-resize;
+  touch-action: none;
+}
+
+/* --- xterm emulator area (shared with TerminalView) --- */
+
+.term {
+  /* Inset (not padding) so the FitAddon still measures the exact renderable
+     area. The bottom stays flush because the xterm viewport already leaves its
+     own line-height remainder there; left/right/top get the gutter so text
+     does not touch the window border. */
+  position: absolute;
+  inset: 3px 3px 0 3px;
+}
+
+.termHidden {
+  visibility: hidden;
+  pointer-events: none;
+}

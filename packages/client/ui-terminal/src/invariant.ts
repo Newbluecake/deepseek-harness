@@ -15,10 +15,10 @@ export const name = 'client-ui-terminal-invariant'
 export const inject = ['invariants']
 
 /**
- * No runtime invariant: a pure-consumer plugin registering the terminal panel
- * into the root `shell.overlay` slot; it owns no cross-plugin mutable state
- * (its store is entry-local tab/panel presentation state, and the PTY sessions
- * it drives live on the Host).
+ * No runtime invariant: a pure-consumer plugin registering the global terminal
+ * Dock into the root `shell.overlay` slot; it owns no cross-plugin mutable
+ * state (its store is entry-local Dock/window presentation state, and the PTY
+ * sessions it drives live on the Host).
  */
 const install: InvariantInstaller = () => {}
 

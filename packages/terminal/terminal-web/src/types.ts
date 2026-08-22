@@ -3,6 +3,8 @@
  * @module @deepseek-ai/dsh-terminal-web/types
  */
 
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
+
 declare module '@deepseek-ai/cordis' {
   interface Events {
     /**
@@ -29,8 +31,10 @@ export type TerminalWebSignal = 'SIGINT' | 'SIGTERM' | 'SIGKILL' | 'SIGTSTP' | '
 
 /** Public info for one live terminal session. */
 export interface TerminalWebSessionInfo {
-  /** Registry-minted session identity. */
+  /** Registry-minted terminal identity (the PTY session). */
   sessionId: string
+  /** The owning Agent session id; later read/write calls address this session. */
+  ownerSessionId: SessionId
   /** Optional display name, or `null` when unset. */
   name: string | null
   /** Top-level terminal process id. */
@@ -103,7 +107,7 @@ export interface TerminalWebRenameRequest {
 
 /** Successful list result. */
 export interface TerminalWebListResult {
-  /** Sessions owned by the calling session, in spawn order. */
+  /** Sessions in spawn order; `list` scopes to the caller, `listAll` returns every live session. */
   sessions: TerminalWebSessionInfo[]
 }
 

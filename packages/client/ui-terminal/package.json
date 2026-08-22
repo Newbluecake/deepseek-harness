@@ -1,6 +1,6 @@
 {
   "name": "@deepseek-ai/dsh-client-ui-terminal",
-  "description": "Interactive terminal web UI: an xterm.js bottom panel with multiple persistent shell sessions as tabs",
+  "description": "Interactive terminal web UI: a global macOS-style Dock with a cross-session terminal list and draggable xterm.js floating windows",
   "version": "0.1.0-rc.8",
   "publishConfig": {
     "access": "public"

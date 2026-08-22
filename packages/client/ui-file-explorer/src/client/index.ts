@@ -55,8 +55,6 @@ export function apply(ctx: ClientContext): void {
   const store = createFileExplorerStore()
   const controller = new FileExplorerController()
   const terminalPanel = ctx.get('terminalPanel') as {
-    getSnapshot(): { open: boolean; width: number }
-    subscribe(listener: () => void): () => void
     close(): void
     toggle(): void
   }

@@ -214,6 +214,20 @@ export class TerminalWebService extends TypertRemoteService {
   }
 
   /**
+   * List every live terminal across all owning sessions. Root-scoped (no
+   * wire identity): the global Dock reads this to discover terminals from any
+   * session. Read/write/signal/kill stay agent-scoped, so opening another
+   * session's terminal still resolves its owner identity for those calls.
+   * @returns all live sessions in global spawn order, each carrying its owner.
+   */
+  @Remote('listAll')
+  async listAll(): Promise<TerminalWebListResult> {
+    const sessions: TerminalWebSessionInfo[] = []
+    for (const session of this.sessions.values()) sessions.push(this.info(session))
+    return { sessions }
+  }
+
+  /**
    * Read one session's retained scrollback and the current output cursor.
    * @param agent - exact live Agent resolved from the wire identity.
    * @param request - target session.
@@ -319,6 +333,7 @@ export class TerminalWebService extends TypertRemoteService {
   private info(session: PtySession): TerminalWebSessionInfo {
     return {
       sessionId: session.id,
+      ownerSessionId: session.owner.id,
       name: session.name,
       pid: session.handle.pid,
       cwd: session.cwd,
