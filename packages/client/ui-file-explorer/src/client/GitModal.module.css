@@ -1,14 +1,13 @@
-/* Unified git modal frame (backdrop + card) and the top tab switcher hosting
-   the diff and graph views. */
+/* Per-file git diff modal frame. */
 
 .backdrop {
   position: fixed;
-  inset: 0;
+  inset: 0 72px 0 0;
   background: rgba(0, 0, 0, 0.5);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  z-index: 800;
   pointer-events: auto;
   padding: 24px;
 }
@@ -35,37 +34,18 @@
   background: var(--dsw-alias-bg-layer-2);
 }
 
-.tabs {
+.title {
   flex: 1;
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 4px;
-}
-
-.tab {
-  display: flex;
-  align-items: center;
   gap: 6px;
-  padding: 5px 12px;
-  border: none;
-  border-radius: 7px;
-  background: transparent;
-  color: var(--dsw-alias-label-secondary);
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  user-select: none;
-}
-
-.tab:hover {
-  background: var(--dsw-alias-bg-layer-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: var(--dsw-alias-label-primary);
-}
-
-.tabActive {
-  background: var(--dsw-alias-bg-layer-1);
-  color: var(--dsw-alias-brand-primary);
+  font-family: var(--dfe-font-code);
+  font-size: 13px;
   font-weight: 600;
 }
 
@@ -87,22 +67,4 @@
 .close:hover {
   background: var(--dsw-alias-bg-layer-1);
   color: var(--dsw-alias-label-primary);
-}
-
-.panes {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.pane {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.paneHidden {
-  display: none;
 }

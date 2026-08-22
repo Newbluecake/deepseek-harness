@@ -117,7 +117,10 @@ export class FileExplorerService extends TypertRemoteService {
   @Remote('gitStatus')
   async gitStatus(agent: Agent): Promise<GitStatusResult> {
     const root = this.workspaceRoot(agent)
-    const run = await this.runGit('git --no-optional-locks -c status.renames=false status --short --untracked-files=all', 30000, root)
+    const [run, branchRun] = await Promise.all([
+      this.runGit('git --no-optional-locks -c status.renames=false status --short --untracked-files=all', 30000, root),
+      this.runGit('git --no-optional-locks branch --show-current', 30000, root),
+    ])
     const staged: GitChange[] = []
     const unstaged: GitChange[] = []
     for (const line of run.text.split('\n')) {
@@ -129,7 +132,7 @@ export class FileExplorerService extends TypertRemoteService {
       if (index !== ' ' && index !== '?') staged.push({ code: index, path })
       if (worktree !== ' ') unstaged.push({ code: worktree, path })
     }
-    return { workdir: root, staged, unstaged }
+    return { workdir: root, branch: branchRun.text.trim(), staged, unstaged }
   }
 
   /**
@@ -162,16 +165,19 @@ export class FileExplorerService extends TypertRemoteService {
   @Remote('gitLog')
   async gitLog(agent: Agent): Promise<GitLogResult> {
     const root = this.workspaceRoot(agent)
-    const run = await this.runGit(
-      `git --no-optional-locks log --all --topo-order --decorate=full --date=short --pretty=format:%x1e%H%x1f%P%x1f%D%x1f%an%x1f%ad%x1f%s --max-count=${MAX_GIT_LOG_COMMITS}`,
-      30000,
-      root,
-    ).catch((error: unknown) => {
-      // A repository with no commits fails `git log`; project an empty history.
-      if (String(error).includes('does not have any commits')) return { text: '', truncated: false }
-      throw error
-    })
-    return { workdir: root, commits: parseGitLog(run.text), truncated: run.truncated }
+    const [run, branchRun] = await Promise.all([
+      this.runGit(
+        `git --no-optional-locks log --all --topo-order --decorate=full --date=short --pretty=format:%x1e%H%x1f%P%x1f%D%x1f%an%x1f%ad%x1f%s --max-count=${MAX_GIT_LOG_COMMITS}`,
+        30000,
+        root,
+      ).catch((error: unknown) => {
+        // A repository with no commits fails `git log`; project an empty history.
+        if (String(error).includes('does not have any commits')) return { text: '', truncated: false }
+        throw error
+      }),
+      this.runGit('git --no-optional-locks branch --show-current', 30000, root),
+    ])
+    return { workdir: root, branch: branchRun.text.trim(), commits: parseGitLog(run.text), truncated: run.truncated }
   }
 
   /** Resolve one session's workspace root, falling back to the process-wide root. */

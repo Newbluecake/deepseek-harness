@@ -1,7 +1,6 @@
 /**
- * Git Graph tab content: renders the commit history as a visual branch graph
- * (colored lanes, commit nodes, ref badges) inside the unified git modal. It
- * reloads the history each time it mounts.
+ * Git Tree panel content: renders commit history as a visual branch graph
+ * with colored lanes, commit nodes, and ref badges in the details column.
  */
 import { useEffect, useMemo, useState } from 'react'
 import type { GitLogCommit, GitLogRef } from '@deepseek-ai/dsh-file-explorer/types'
@@ -68,27 +67,33 @@ function refClass(kind: GitLogRef['kind']): string {
 /** Loaded history plus its loading/error frame. */
 interface GitTreeData {
   loading: boolean
-  workdir: string
+  branch: string
   commits: GitLogCommit[]
   truncated: boolean
   error: string | null
 }
 
 /**
- * Render the git graph tab content (body + foot for the unified modal).
+ * Render the Git Tree panel content.
  * @param props - the session id plus the git Remote method it drives.
  * @returns the graph content.
  */
 export function GitTreeViewer({ sessionId, gitLog }: GraphContentProps) {
-  const [data, setData] = useState<GitTreeData>({ loading: true, workdir: '', commits: [], truncated: false, error: null })
+  const [data, setData] = useState<GitTreeData>({ loading: true, branch: '', commits: [], truncated: false, error: null })
 
   useEffect(() => {
-    setData({ loading: true, workdir: '', commits: [], truncated: false, error: null })
-    gitLog(sessionId).then((result) => {
+    setData({ loading: true, branch: '', commits: [], truncated: false, error: null })
+    void gitLog(sessionId).then((result) => {
       if (result.ok) {
-        setData({ loading: false, workdir: result.value.workdir, commits: result.value.commits, truncated: result.value.truncated, error: null })
+        setData({
+          loading: false,
+          branch: result.value.branch,
+          commits: result.value.commits,
+          truncated: result.value.truncated,
+          error: null,
+        })
       } else {
-        setData({ loading: false, workdir: '', commits: [], truncated: false, error: result.error.message })
+        setData({ loading: false, branch: '', commits: [], truncated: false, error: result.error.message })
       }
     })
   }, [sessionId])
@@ -127,7 +132,7 @@ export function GitTreeViewer({ sessionId, gitLog }: GraphContentProps) {
             <div key={commit.hash} className={css.commitRow} style={{ height: ROW_HEIGHT }}>
               <div className={css.commitTop}>
                 {commit.refs.map(ref => (
-                  <span key={`${ref.kind}:${ref.name}`} className={`${css.ref} ${refClass(ref.kind)}`}>{ref.name}</span>
+                  <span key={`${ref.kind}:${ref.name}`} className={`${css.ref} ${refClass(ref.kind)}`}>{ref.kind === 'head' ? `当前 · ${ref.name}` : ref.name}</span>
                 ))}
                 <span className={css.subject}>{commit.subject}</span>
               </div>
@@ -144,12 +149,12 @@ export function GitTreeViewer({ sessionId, gitLog }: GraphContentProps) {
   }
 
   return (
-    <>
+    <div className={css.panel}>
       <div className={css.body}>
         {data.truncated && <div className={css.truncNote}>提交历史过长，已截断显示</div>}
         {body}
       </div>
-      {data.workdir !== '' && <div className={css.foot}>{data.workdir}</div>}
-    </>
+      {!data.loading && data.error === null && <div className={css.foot}>{data.branch === '' ? '分离 HEAD' : data.branch}</div>}
+    </div>
   )
 }

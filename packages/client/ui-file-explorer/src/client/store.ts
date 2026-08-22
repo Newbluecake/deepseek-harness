@@ -1,32 +1,37 @@
 /**
  * File-explorer viewing store shared across the registrations: the session
- * `details` tree and the modal entries. Module level exports the factory only
- * (a module-level handle would pin the store identity across plugin reloads);
- * `apply` passes one handle to every register and the components derive their
- * PropsStore share from the return type.
+ * `details` panel and the overlay entries. Module level exports the factory
+ * only (a module-level handle would pin the store identity across plugin
+ * reloads); `apply` passes one handle to every register and the components
+ * derive their PropsStore share from the return type.
  */
 import { defineStore, type EngineStoreHandle } from '@deepseek-ai/dsh-client-runtime/client'
-import type { FileExplorerEntry } from '@deepseek-ai/dsh-file-explorer/types'
+import type { FileDiffRequest, FileExplorerEntry } from '@deepseek-ai/dsh-file-explorer/types'
 
-/** Which tab the unified git modal shows. */
-export type GitModalTab = 'diff' | 'graph'
+/** Content shown in the session details column. */
+export type FileExplorerPanel = 'files' | 'diff' | 'tree'
 
-/** Viewing state shared across the tree and the modal entries. */
+/** One selected git change whose file diff is open. */
+export interface OpenFileDiff extends FileDiffRequest {}
+
+/** Viewing state shared across the panel and overlay entries. */
 type FileExplorerViewState = {
+  /** Content shown in the session details column. */
+  panel: FileExplorerPanel
   /** File whose content the code viewer shows, or none. */
   openFile: FileExplorerEntry | null
-  /** Whether the unified git modal (diff / graph) is open. */
-  gitModalOpen: boolean
-  /** The git modal's active tab. */
-  gitModalTab: GitModalTab
+  /** Git change whose side-by-side diff is open, or none. */
+  openFileDiff: OpenFileDiff | null
+  /** Whether the Git Tree modal is open. */
+  gitTreeOpen: boolean
 }
 
 /** Mutation API for the viewing state (the declared store actions). */
 type FileExplorerViewActions = {
+  setPanel: (draft: FileExplorerViewState, panel: FileExplorerPanel) => void
   setOpenFile: (draft: FileExplorerViewState, file: FileExplorerEntry | null) => void
-  openGitModal: (draft: FileExplorerViewState, tab: GitModalTab) => void
-  closeGitModal: (draft: FileExplorerViewState) => void
-  setGitModalTab: (draft: FileExplorerViewState, tab: GitModalTab) => void
+  setOpenFileDiff: (draft: FileExplorerViewState, file: OpenFileDiff | null) => void
+  setGitTreeOpen: (draft: FileExplorerViewState, open: boolean) => void
 }
 
 /**
@@ -35,12 +40,12 @@ type FileExplorerViewActions = {
  */
 export function createFileExplorerStore(): EngineStoreHandle<FileExplorerViewState, FileExplorerViewActions> {
   return defineStore({
-    init: (): FileExplorerViewState => ({ openFile: null, gitModalOpen: false, gitModalTab: 'diff' }),
+    init: (): FileExplorerViewState => ({ panel: 'diff', openFile: null, openFileDiff: null, gitTreeOpen: false }),
     actions: {
-      setOpenFile: (d, file) => { d.openFile = file; if (file !== null) d.gitModalOpen = false },
-      openGitModal: (d, tab) => { d.gitModalOpen = true; d.gitModalTab = tab; d.openFile = null },
-      closeGitModal: (d) => { d.gitModalOpen = false },
-      setGitModalTab: (d, tab) => { d.gitModalTab = tab },
+      setPanel: (d, panel) => { d.panel = panel; d.openFile = null; d.openFileDiff = null },
+      setOpenFile: (d, file) => { d.openFile = file; if (file !== null) { d.openFileDiff = null; d.gitTreeOpen = false } },
+      setOpenFileDiff: (d, file) => { d.openFileDiff = file; if (file !== null) { d.openFile = null; d.gitTreeOpen = false } },
+      setGitTreeOpen: (d, open) => { d.gitTreeOpen = open; if (open) { d.openFile = null; d.openFileDiff = null } },
     },
   })
 }

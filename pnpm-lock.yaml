@@ -2104,6 +2104,9 @@ importers:
       '@deepseek-ai/dsh-client-ui-slots':
         specifier: workspace:^
         version: link:../ui-slots
+      '@deepseek-ai/dsh-client-ui-terminal':
+        specifier: workspace:^
+        version: link:../ui-terminal
       '@deepseek-ai/dsh-file-explorer':
         specifier: workspace:^
         version: link:../../fs/file-explorer
@@ -2983,6 +2986,9 @@ importers:
       '@deepseek-ai/dsh-client-runtime':
         specifier: workspace:^
         version: link:../runtime
+      '@deepseek-ai/dsh-client-ui-layout':
+        specifier: workspace:^
+        version: link:../ui-layout
       '@deepseek-ai/dsh-client-ui-slots':
         specifier: workspace:^
         version: link:../ui-slots

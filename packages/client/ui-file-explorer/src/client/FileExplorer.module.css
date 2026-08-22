@@ -63,14 +63,13 @@
   font-size: 14px;
 }
 
-.count {
+.toolbarActions {
   margin-left: auto;
-  font-size: 12px;
-  color: var(--dsw-alias-label-secondary);
-  background: var(--dsw-alias-bg-layer-2);
-  border-radius: 999px;
-  padding: 1px 8px;
-  font-variant-numeric: tabular-nums;
+  flex: none;
+  display: grid;
+  grid-template-columns: repeat(6, 24px);
+  align-items: center;
+  gap: 4px;
 }
 
 .iconBtn {
@@ -90,6 +89,11 @@
 .iconBtn:hover:not(:disabled) {
   background: var(--dsw-alias-bg-layer-2);
   color: var(--dsw-alias-label-primary);
+}
+
+.iconBtnActive {
+  background: var(--dsw-alias-bg-layer-2);
+  color: var(--dsw-alias-brand-primary);
 }
 
 .iconBtn:disabled {

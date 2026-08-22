@@ -92,6 +92,7 @@ export function TerminalPanel({
   renameTerminal,
   onTerminalOutput,
   onTerminalExit,
+  terminalPanel,
 }: TerminalPanelProps) {
   const panelOpen = useStore(state => state.panelOpen)
   const activeTerminalId = useStore(state => state.activeTerminalId)
@@ -175,6 +176,13 @@ export function TerminalPanel({
     if (list.length === 0) await spawn()
   }, [sessionId, actions, refresh, spawn])
 
+  useEffect(() => {
+    terminalPanel.attach({
+      open: () => { void openPanel() },
+      close: () => { actions.setPanelOpen(false) },
+    }, { open: panelOpen, width })
+  }, [terminalPanel, openPanel, actions, panelOpen, width])
+
   // Inline tab rename: double-click the tab label to edit, Enter/blur commits,
   // Escape cancels. The name persists on the Host session.
   const startRename = (terminal: TerminalWebSessionInfo): void => {
@@ -192,116 +200,92 @@ export function TerminalPanel({
 
   if (sessionId === undefined) return null
 
-  // The reveal/collapse handle stays visible in both states: at the right edge
-  // when the panel is closed, and attached to the panel's left edge when open
-  // (so the user can click it to collapse).
-  const fab = (
-    <button
-      type="button"
-      className={css.fab}
-      style={{ right: panelOpen ? `${width}px` : 0 }}
-      title={panelOpen ? '收起终端' : '打开终端'}
-      onClick={() => {
-        if (panelOpen) {
-          actions.setPanelOpen(false)
-        } else {
-          void openPanel()
-        }
-      }}
-    >
-      {panelOpen ? <ChevronRightIcon size={24} /> : <TerminalIcon size={24} />}
-    </button>
-  )
-
-  if (!panelOpen) return fab
+  if (!panelOpen) return null
 
   const active = terminals.find(t => t.sessionId === activeTerminalId) ?? terminals[0]
 
   return (
-    <>
-      {fab}
-      <div className={css.panel} style={{ width: `${width}px` }}>
-        <div className={css.resizeHandle} title="拖拽调整宽度" onMouseDown={onResizeStart} />
-        <div className={css.panelInner}>
-          <div className={css.tabbar}>
-            <span className={css.tabbarIcon}><TerminalIcon /></span>
-            <div className={css.tabs}>
-              {terminals.map((terminal, index) => (
-                <div
-                  key={terminal.sessionId}
-                  className={clsx(css.tab, terminal.sessionId === (active?.sessionId ?? activeTerminalId) && css.tabActive)}
-                  onClick={() => { actions.setActiveTerminal(terminal.sessionId) }}
-                >
-                  <span className={clsx(css.tabDot, !terminal.running && css.tabDotExited)} />
-                  {editingId === terminal.sessionId ? (
-                    <input
-                      className={css.tabEdit}
-                      value={editingValue}
-                      autoFocus
-                      onChange={(event) => { setEditingValue(event.target.value) }}
-                      onClick={(event) => { event.stopPropagation() }}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter') { event.preventDefault(); void submitRename() }
-                        else if (event.key === 'Escape') { event.preventDefault(); setEditingId(null) }
-                      }}
-                      onBlur={() => { void submitRename() }}
-                    />
-                  ) : (
-                    <span
-                      className={css.tabLabel}
-                      title="双击重命名"
-                      onDoubleClick={(event) => { event.stopPropagation(); startRename(terminal) }}
-                    >
-                      {terminal.name ?? `终端 ${index + 1}`}
-                    </span>
-                  )}
-                  <button
-                    type="button"
-                    className={css.tabClose}
-                    title="关闭终端"
-                    onClick={(event) => { event.stopPropagation(); void kill(terminal.sessionId) }}
+    <div className={css.panel} style={{ width: `${width}px` }}>
+      <div className={css.resizeHandle} title="拖拽调整宽度" onMouseDown={onResizeStart} />
+      <div className={css.panelInner}>
+        <div className={css.tabbar}>
+          <span className={css.tabbarIcon}><TerminalIcon /></span>
+          <div className={css.tabs}>
+            {terminals.map((terminal, index) => (
+              <div
+                key={terminal.sessionId}
+                className={clsx(css.tab, terminal.sessionId === (active?.sessionId ?? activeTerminalId) && css.tabActive)}
+                onClick={() => { actions.setActiveTerminal(terminal.sessionId) }}
+              >
+                <span className={clsx(css.tabDot, !terminal.running && css.tabDotExited)} />
+                {editingId === terminal.sessionId ? (
+                  <input
+                    className={css.tabEdit}
+                    value={editingValue}
+                    autoFocus
+                    onChange={(event) => { setEditingValue(event.target.value) }}
+                    onClick={(event) => { event.stopPropagation() }}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') { event.preventDefault(); void submitRename() }
+                      else if (event.key === 'Escape') { event.preventDefault(); setEditingId(null) }
+                    }}
+                    onBlur={() => { void submitRename() }}
+                  />
+                ) : (
+                  <span
+                    className={css.tabLabel}
+                    title="双击重命名"
+                    onDoubleClick={(event) => { event.stopPropagation(); startRename(terminal) }}
                   >
-                    <CloseIcon />
-                  </button>
-                </div>
-              ))}
-            </div>
-            <button type="button" className={css.iconBtn} title="新建终端" disabled={spawning} onClick={() => { void spawn() }}><PlusIcon /></button>
-            <button
-              type="button"
-              className={css.iconBtn}
-              title={fullscreen ? '退出全屏' : '全屏'}
-              onClick={() => { actions.setFullscreen(!fullscreen) }}
-            >
-              {fullscreen ? <MinimizeIcon /> : <MaximizeIcon />}
-            </button>
-            <button type="button" className={css.iconBtn} title="收起面板" onClick={() => { actions.setPanelOpen(false) }}><ChevronRightIcon /></button>
-          </div>
-          <div className={css.termArea}>
-            {terminals.length === 0 ? (
-              <div className={css.empty}>
-                <span className={css.emptyIcon}><TerminalIcon /></span>
-                <button type="button" className={css.emptyBtn} disabled={spawning} onClick={() => { void spawn() }}>
-                  {spawning ? '正在创建…' : '新建终端'}
+                    {terminal.name ?? `终端 ${index + 1}`}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  className={css.tabClose}
+                  title="关闭终端"
+                  onClick={(event) => { event.stopPropagation(); void kill(terminal.sessionId) }}
+                >
+                  <CloseIcon />
                 </button>
               </div>
-            ) : (
-              terminals.map(terminal => (
-                <TerminalView
-                  key={terminal.sessionId}
-                  agentSessionId={sessionId}
-                  terminalId={terminal.sessionId}
-                  active={terminal.sessionId === (active?.sessionId ?? activeTerminalId)}
-                  writeTerminal={writeTerminal}
-                  readTerminal={readTerminal}
-                  resizeTerminal={resizeTerminal}
-                  onTerminalOutput={onTerminalOutput}
-                />
-              ))
-            )}
+            ))}
           </div>
+          <button type="button" className={css.iconBtn} title="新建终端" disabled={spawning} onClick={() => { void spawn() }}><PlusIcon /></button>
+          <button
+            type="button"
+            className={css.iconBtn}
+            title={fullscreen ? '退出全屏' : '全屏'}
+            onClick={() => { actions.setFullscreen(!fullscreen) }}
+          >
+            {fullscreen ? <MinimizeIcon /> : <MaximizeIcon />}
+          </button>
+          <button type="button" className={css.iconBtn} title="收起面板" onClick={() => { actions.setPanelOpen(false) }}><ChevronRightIcon /></button>
+        </div>
+        <div className={css.termArea}>
+          {terminals.length === 0 ? (
+            <div className={css.empty}>
+              <span className={css.emptyIcon}><TerminalIcon /></span>
+              <button type="button" className={css.emptyBtn} disabled={spawning} onClick={() => { void spawn() }}>
+                {spawning ? '正在创建…' : '新建终端'}
+              </button>
+            </div>
+          ) : (
+            terminals.map(terminal => (
+              <TerminalView
+                key={terminal.sessionId}
+                agentSessionId={sessionId}
+                terminalId={terminal.sessionId}
+                active={terminal.sessionId === (active?.sessionId ?? activeTerminalId)}
+                writeTerminal={writeTerminal}
+                readTerminal={readTerminal}
+                resizeTerminal={resizeTerminal}
+                onTerminalOutput={onTerminalOutput}
+              />
+            ))
+          )}
         </div>
       </div>
-    </>
+    </div>
   )
 }

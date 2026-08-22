@@ -45,6 +45,8 @@ export interface GitChange {
 export interface GitStatusResult {
   /** Workspace root the status ran against. */
   workdir: string
+  /** Current local branch, or an empty string for a detached HEAD. */
+  branch: string
   /** Paths with an index (staged) change. */
   staged: GitChange[]
   /** Paths with a worktree (unstaged) change, including untracked. */
@@ -99,6 +101,8 @@ export interface GitLogCommit {
 export interface GitLogResult {
   /** Workspace root the log ran against. */
   workdir: string
+  /** Current local branch, or an empty string for a detached HEAD. */
+  branch: string
   /** Commits in topological order (children before parents). */
   commits: GitLogCommit[]
   /** Whether the history was truncated. */

@@ -7,6 +7,8 @@
 import { useEffect, useState } from 'react'
 import type { FileExplorerEntry } from '@deepseek-ai/dsh-file-explorer/types'
 import type { FileExplorerProps } from './contract/slots.ts'
+import { GitBranchViewer } from './GitBranchViewer.tsx'
+import { GitChangesViewer } from './GitChangesViewer.tsx'
 import css from './FileExplorer.module.css'
 
 interface TreeNode {
@@ -239,11 +241,15 @@ export function FileExplorer({
   useStore,
   actions,
   listDir,
+  gitStatus,
+  gitLog,
   openPanel,
   closePanel,
   setPanelPinned,
+  attachController,
   renderSlot,
 }: FileExplorerProps) {
+  const panel = useStore(state => state.panel)
   const openFile = useStore(state => state.openFile)
   const [rootState, setRootState] = useState<RootState>({ loading: true, path: null, error: null })
   const [tree, setTree] = useState<Record<string, TreeNode>>({})
@@ -262,7 +268,7 @@ export function FileExplorer({
     })
   }
 
-  useEffect(() => { loadRoot(); openPanel(); setPanelPinned(true) }, [])
+  useEffect(() => { attachController(actions); loadRoot(); openPanel(); setPanelPinned(true) }, [])
 
   const toggleDir = (path: string): void => {
     const node = tree[path]
@@ -304,21 +310,8 @@ export function FileExplorer({
     })
   }
 
-  const countVisible = (path: string): number => {
-    const node = tree[path]
-    if (node === undefined) return 0
-    let total = 0
-    for (const entry of node.entries) {
-      total += 1
-      const child = tree[entry.path]
-      if (entry.type === 'directory' && child?.expanded === true) total += countVisible(entry.path)
-    }
-    return total
-  }
-
   const q = query.trim().toLowerCase()
   const rows: JSX.Element[] = []
-  const counter = { matched: 0 }
 
   const renderNodes = (path: string, depth: number): void => {
     const node = tree[path]
@@ -331,7 +324,6 @@ export function FileExplorer({
         if (expanded) renderNodes(entry.path, depth + 1)
         continue
       }
-      counter.matched += 1
       const indent = `${depth * 14 + 6}px`
       const selected = openFile?.path === entry.path
       if (entry.type === 'directory') {
@@ -378,28 +370,35 @@ export function FileExplorer({
     }
   }
 
-  const total = rootState.path === null ? 0 : countVisible(rootState.path)
-  const countText = rootState.loading ? '…' : `${q === '' ? total : `${counter.matched}/${total}`} 项`
+  const title = panel === 'files' ? '文件目录' : panel === 'diff' ? 'Git Diff' : 'Git Tree'
 
   return (
     <div className={css.root}>
-      <div className={css.head}>
-        <button type="button" className={css.headIcon} title="收起文件目录" onClick={closePanel}><FolderIcon size={15} /></button>
-        <span className={css.title}>文件目录</span>
-        <span className={css.count}>{countText}</span>
-        <button type="button" className={css.iconBtn} title="Git Diff" onClick={() => { actions.openGitModal('diff') }}><GitBranchIcon /></button>
-        <button type="button" className={css.iconBtn} title="Git Graph" onClick={() => { actions.openGitModal('graph') }}><GitCommitIcon /></button>
-        <button type="button" className={css.iconBtn} title="全部收起" disabled={rootState.loading} onClick={collapseAll}><CollapseIcon /></button>
-        <button type="button" className={css.iconBtn} title="刷新" disabled={rootState.loading} onClick={loadRoot}><RefreshIcon /></button>
-        <button type="button" className={css.iconBtn} title="收起面板" onClick={closePanel}><CollapsePanelIcon /></button>
+      <div className={css.head} role="toolbar" aria-label="文件工具栏">
+        <button type="button" className={css.headIcon} title={`收起${title}`} onClick={closePanel}><FolderIcon size={15} /></button>
+        <span className={css.title}>{title}</span>
+        <div className={css.toolbarActions}>
+          <button type="button" className={panel === 'files' ? `${css.iconBtn} ${css.iconBtnActive}` : css.iconBtn} title="文件列表" aria-label="文件列表" onClick={() => { actions.setPanel('files') }}><FolderIcon size={14} /></button>
+          <button type="button" className={panel === 'diff' ? `${css.iconBtn} ${css.iconBtnActive}` : css.iconBtn} title="Git Diff" aria-label="Git Diff" onClick={() => { actions.setPanel('diff') }}><GitBranchIcon /></button>
+          <button type="button" className={panel === 'tree' ? `${css.iconBtn} ${css.iconBtnActive}` : css.iconBtn} title="Git Tree" aria-label="Git Tree" onClick={() => { actions.setGitTreeOpen(false); actions.setPanel('tree') }}><GitCommitIcon /></button>
+          <button type="button" className={css.iconBtn} title="全部收起" disabled={panel !== 'files' || rootState.loading} onClick={collapseAll}><CollapseIcon /></button>
+          <button type="button" className={css.iconBtn} title="刷新" disabled={panel !== 'files' || rootState.loading} onClick={loadRoot}><RefreshIcon /></button>
+          <button type="button" className={css.iconBtn} title="收起面板" onClick={closePanel}><CollapsePanelIcon /></button>
+        </div>
       </div>
-      <div className={css.search}>
-        <span className={css.searchIcon}><SearchIcon /></span>
-        <input className={css.searchInput} type="text" placeholder="搜索文件名…" value={query} onChange={(event) => { setQuery(event.target.value) }} />
-        {query !== '' && <button type="button" className={css.searchClear} title="清除" onClick={() => { setQuery('') }}><ClearIcon /></button>}
-      </div>
-      {rootState.path !== null && <div className={css.rootPath} title={rootState.path}>{rootState.path}</div>}
-      <div className={css.list}>{rows}</div>
+      {panel === 'files' && (
+        <>
+          <div className={css.search}>
+            <span className={css.searchIcon}><SearchIcon /></span>
+            <input className={css.searchInput} type="text" placeholder="搜索文件名…" value={query} onChange={(event) => { setQuery(event.target.value) }} />
+            {query !== '' && <button type="button" className={css.searchClear} title="清除" onClick={() => { setQuery('') }}><ClearIcon /></button>}
+          </div>
+          {rootState.path !== null && <div className={css.rootPath} title={rootState.path}>{rootState.path}</div>}
+          <div className={css.list}>{rows}</div>
+        </>
+      )}
+      {panel === 'diff' && <GitChangesViewer sessionId={sessionId} gitStatus={gitStatus} openFileDiff={(path, scope) => { actions.setOpenFileDiff({ path, scope }) }} />}
+      {panel === 'tree' && <GitBranchViewer sessionId={sessionId} gitLog={gitLog} expand={() => { actions.setGitTreeOpen(true) }} />}
       {renderSlot('file-explorer.overlay', {})}
     </div>
   )

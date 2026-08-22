@@ -27,6 +27,9 @@
       "path": "../ui-layout"
     },
     {
+      "path": "../ui-terminal"
+    },
+    {
       "path": "../ui-slots"
     },
     {

@@ -24,6 +24,22 @@ import type {
   TerminalWebWriteRequest,
 } from '@deepseek-ai/dsh-terminal-web/types'
 import type { createTerminalStore } from '../store.ts'
+import type { TerminalPanelController } from '../service.ts'
+
+/** Public terminal panel geometry consumed by the unified right Dock. */
+export interface TerminalPanelSnapshot {
+  open: boolean
+  width: number
+}
+
+/** Cross-plugin control face for the right-docked terminal panel. */
+export interface ITerminalPanel {
+  getSnapshot(): TerminalPanelSnapshot
+  subscribe(listener: () => void): () => void
+  open(): void
+  close(): void
+  toggle(): void
+}
 
 /** One forwarded terminal output chunk. */
 export interface TerminalOutputPayload {
@@ -60,6 +76,8 @@ export interface TerminalInjected {
   onTerminalOutput: (listener: (payload: TerminalOutputPayload) => void) => () => void
   /** Subscribe to forwarded terminal exit notices; returns the unsubscribe. */
   onTerminalExit: (listener: (payload: TerminalExitPayload) => void) => () => void
+  /** Terminal-owned cross-plugin panel controller. */
+  terminalPanel: TerminalPanelController
 }
 
 /** Full panel props: the `shell.overlay` runtime share, the panel store, and the injected actions. */

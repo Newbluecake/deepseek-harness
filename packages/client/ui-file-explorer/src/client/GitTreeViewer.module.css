@@ -1,5 +1,4 @@
-/* Git Graph modal: visual branch graph (colored lanes + commit nodes) over the
-   commit list, plus the branch color palette and ref badges. */
+/* Git Tree panel: visual branch graph over the commit list. */
 
 :global(:root) {
   --dfe-branch-0: #3b82f6;
@@ -77,10 +76,22 @@
   color: var(--dsw-alias-label-primary);
 }
 
+.panel {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-layer-1);
+}
+
 .body {
   flex: 1;
+  min-height: 0;
   overflow: auto;
-  padding: 14px;
+  padding: 8px;
 }
 
 .scroll {
@@ -108,7 +119,7 @@
 
 .commits {
   flex: 1;
-  min-width: 420px;
+  min-width: 220px;
 }
 
 .commitRow {

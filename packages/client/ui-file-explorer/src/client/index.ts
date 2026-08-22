@@ -1,10 +1,9 @@
 /**
  * File explorer plugin, browser half: the workspace tree registered into the
- * root `details` column, plus the text-preview, git-diff, and commit-graph
- * modals registered into the session-scoped `file-explorer.overlay` child
- * seat the tree entry declares (fixed positioning lifts them above the
- * frame; a root `shell.overlay` seat could not share the tree's store
- * handle — one handle, one scope). All four share one viewing store and one
+ * root `details` column, plus the text-preview and per-file git-diff modals
+ * registered into the session-scoped `file-explorer.overlay` child seat the
+ * panel entry declares. The file list and git changes list switch within the
+ * details column; Git Tree uses its own modal. All entries share one viewing store and one
  * inject face wrapping `ctx.remote.fileExplorer`. Export discipline:
  * packages/client/AGENTS.md.
  */
@@ -17,7 +16,9 @@ import { createFileExplorerStore } from './store.ts'
 import { FileExplorer } from './FileExplorer.tsx'
 import { CodeViewer } from './CodeViewer.tsx'
 import { GitModal } from './GitModal.tsx'
+import { GitTreeModal } from './GitTreeModal.tsx'
 import { FileExplorerRail } from './FileExplorerRail.tsx'
+import { FileExplorerController } from './controller.ts'
 
 export type {
   CodeViewerProps, DiffContentProps, FileExplorerInjected, FileExplorerProps,
@@ -25,7 +26,7 @@ export type {
 } from './contract/slots.ts'
 
 /** Required services: the slot registry and the file-explorer Remote namespace. */
-export const inject = ['slots', 'remote', 'remote.fileExplorer']
+export const inject = ['slots', 'remote', 'remote.fileExplorer', 'terminalPanel']
 
 /**
  * Register the tree and the two modal entries once their slot declarations
@@ -49,8 +50,16 @@ export function apply(ctx: ClientContext): void {
     closePanel: () => { layout?.closeDetails() },
     setPanelPinned: (pinned: boolean) => { panelPinned = pinned },
     isPanelPinned: () => panelPinned,
+    attachController: (actions) => { controller.attach(actions) },
   })
   const store = createFileExplorerStore()
+  const controller = new FileExplorerController()
+  const terminalPanel = ctx.get('terminalPanel') as {
+    getSnapshot(): { open: boolean; width: number }
+    subscribe(listener: () => void): () => void
+    close(): void
+    toggle(): void
+  }
 
   // Priority -1 shadows ui-conversation's DetailsPanel (the priority-0
   // occupant): `details` is a single slot, so the lowest priority renders
@@ -68,15 +77,28 @@ export function apply(ctx: ClientContext): void {
     { name: 'file-explorer.overlay', id: 'file-explorer-viewer', order: 0, store, inject: injected },
     CodeViewer,
   ))
-  // The unified git modal (diff / graph tabs) is a single overlay entry.
+  // Only a selected changed file opens the git diff overlay.
   ctx.slots.inject('file-explorer.overlay', () => ctx.slots.register(
     { name: 'file-explorer.overlay', id: 'file-explorer-git', order: 1, store, inject: injected },
     GitModal,
   ))
+  ctx.slots.inject('file-explorer.overlay', () => ctx.slots.register(
+    { name: 'file-explorer.overlay', id: 'file-explorer-git-tree', order: 2, store, inject: injected },
+    GitTreeModal,
+  ))
   // Right-edge hover rail (root scope, no store): hovering reveals the
   // collapsed details column; the panel's own collapse button hides it again.
   ctx.slots.inject('shell.overlay', () => ctx.slots.register(
-    { name: 'shell.overlay', id: 'file-explorer-rail', order: 0, inject: () => ({ openPanel: () => { layout?.openDetails() }, setPanelPinned: (pinned: boolean) => { panelPinned = pinned } }) },
+    { name: 'shell.overlay', id: 'file-explorer-rail', order: 0, inject: () => ({
+      openPanel: () => { layout?.openDetails() },
+      setPanelPinned: (pinned: boolean) => { panelPinned = pinned },
+      showFiles: () => { controller.showFiles() },
+      showDiff: () => { controller.showDiff() },
+      showGitTree: () => { controller.showGitTree() },
+      closeGitTree: () => { controller.closeGitTree() },
+      closeTerminal: () => { terminalPanel.close() },
+      toggleTerminal: () => { terminalPanel.toggle() },
+    }) },
     FileExplorerRail,
   ))
 }

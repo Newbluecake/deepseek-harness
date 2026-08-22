@@ -1,26 +1,62 @@
-/* Right-edge reveal rail for the collapsed details column. */
+/* Unified right-edge navigation Dock. */
 
-.rail {
+.dock {
   position: fixed;
-  right: 0;
+  right: 8px;
   top: 50%;
+  z-index: 1100;
+  width: 48px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 7px;
+  padding: 8px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 16px;
+  background: var(--dsw-alias-bg-layer-2);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  pointer-events: auto;
   transform: translateY(-50%);
-  width: 40px;
-  height: 120px;
+}
+
+.item {
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 10px;
   background: var(--dsw-alias-bg-layer-1);
-  border: 1px solid var(--dsw-alias-border-l1);
-  border-right: none;
-  border-radius: 10px 0 0 10px;
-  color: var(--dsw-alias-brand-primary);
+  color: var(--dsw-alias-label-secondary);
   cursor: pointer;
-  z-index: 900;
-  pointer-events: auto;
-  box-shadow: -2px 0 8px rgba(0, 0, 0, 0.08);
+  transform: scale(1);
+  transform-origin: right center;
+  transition: transform 160ms ease, color 160ms ease, border-color 160ms ease;
+  will-change: transform;
 }
 
-.rail:hover {
-  background: var(--dsw-alias-bg-layer-2);
+.item:hover,
+.item:focus-visible {
+  z-index: 2;
+  color: var(--dsw-alias-label-primary);
+  border-color: var(--dsw-alias-border-l2);
+  transform: translateX(-4px) scale(1.45);
+}
+
+.item:focus-visible {
+  outline: 2px solid var(--dsw-alias-brand-primary);
+  outline-offset: 2px;
+}
+
+.item:has(+ .item:hover),
+.item:has(+ .item:focus-visible),
+.item:hover + .item,
+.item:focus-visible + .item {
+  transform: translateX(-2px) scale(1.18);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .item { transition: none; }
 }

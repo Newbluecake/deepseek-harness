@@ -6,10 +6,9 @@
  *   declares the session-scoped `file-explorer.overlay` child seat.
  * - CodeViewer fills a `file-explorer.overlay` entry with the text-preview
  *   modal.
- * - DiffViewer fills a second `file-explorer.overlay` entry with the
- *   git-changes list and per-file side-by-side diff.
- * - GitTreeViewer fills a third `file-explorer.overlay` entry with the
- *   commit-history graph.
+ * - GitModal fills a second `file-explorer.overlay` entry with the selected
+ *   file's side-by-side diff.
+ * - GitTreeModal fills a third overlay entry with the commit graph.
  *
  * The modals render from inside the `details` entry with fixed positioning,
  * so the whole composition stays in the `session` scope: one shared store
@@ -17,10 +16,10 @@
  * so a `shell.overlay` seat — root scope — could never share it).
  *
  * All four read the Host data service through one inject face wrapping
- * `ctx.remote.fileExplorer`, and share the viewing store so opening a file or
- * the diff modal from the tree is visible to the matching modal entry.
+ * `ctx.remote.fileExplorer`, and share the viewing store so panel navigation
+ * and selected file overlays stay synchronized.
  */
-import type { PropsRenderSlots, PropsRuntime, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
+import type { BoundActions, PropsRenderSlots, PropsRuntime, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 // Type-only: pull the owner SlotMap merges into programs that resolve the
 // runtime shares below.
@@ -40,8 +39,8 @@ import type { createFileExplorerStore } from '../store.ts'
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface SlotMap {
     /**
-     * The file-explorer modal layer: text preview, git diff, and commit
-     * graph entries, rendered from inside the `details` tree entry (fixed
+     * The file-explorer modal layer: text preview, selected-file git diff,
+     * and Git Tree entries, rendered from inside the `details` panel (fixed
      * positioning lifts them above the frame). Session scope so the modals
      * share the tree's viewing-store handle.
      */
@@ -69,6 +68,8 @@ export interface FileExplorerInjected {
   setPanelPinned: (pinned: boolean) => void
   /** Whether the panel is pinned (manual) rather than hover-floating. */
   isPanelPinned: () => boolean
+  /** Bind this session's viewing actions to the root Dock controller. */
+  attachController: (actions: BoundActions<ReturnType<typeof createFileExplorerStore>>) => void
 }
 
 /** Full tree props: the `details` runtime share, the modal-layer render seat, the viewing store, and the injected actions. */
@@ -90,10 +91,10 @@ export type GitModalProps =
   & PropsStore<ReturnType<typeof createFileExplorerStore>>
   & FileExplorerInjected
 
-/** Diff tab content props: the session id plus the git Remote methods it drives. */
+/** Per-file diff content props: the session id, selected change, and Remote method it drives. */
 export interface DiffContentProps {
   sessionId: SessionId
-  gitStatus: FileExplorerInjected['gitStatus']
+  request: FileDiffRequest
   fileDiff: FileExplorerInjected['fileDiff']
 }
 
@@ -104,6 +105,17 @@ export interface GraphContentProps {
 }
 
 /** Full right-edge rail props: the root `shell.overlay` share plus the open/pin actions. */
+interface FileExplorerRailInjected {
+  openPanel: () => void
+  setPanelPinned: (pinned: boolean) => void
+  showFiles: () => void
+  showDiff: () => void
+  showGitTree: () => void
+  closeGitTree: () => void
+  closeTerminal: () => void
+  toggleTerminal: () => void
+}
+
 export type FileExplorerRailProps =
   PropsRuntime<'shell.overlay'>
-  & { openPanel: () => void; setPanelPinned: (pinned: boolean) => void }
+  & FileExplorerRailInjected

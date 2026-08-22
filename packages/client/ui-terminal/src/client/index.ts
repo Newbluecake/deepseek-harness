@@ -13,11 +13,12 @@ import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import type { TerminalInjected } from './contract/slots.ts'
 import { createTerminalStore } from './store.ts'
 import { TerminalPanel } from './TerminalPanel.tsx'
+import { TerminalPanelController } from './service.ts'
 // The xterm.js base stylesheet, inlined into the bundle (the build's CSS asset
 // pipeline cannot resolve bare package CSS specifiers, so it ships as a string).
 import xtermCss from './xterm.css?inline'
 
-export type { TerminalInjected, TerminalPanelProps } from './contract/slots.ts'
+export type { ITerminalPanel, TerminalInjected, TerminalPanelProps, TerminalPanelSnapshot } from './contract/slots.ts'
 
 /** Required services: the slot registry, the terminal Remote namespace, and the session list. */
 export const inject = ['slots', 'remote', 'remote.terminalWeb', 'sessions']
@@ -39,6 +40,8 @@ export function apply(ctx: ClientContext): void {
   }, 'terminal: xterm base stylesheet')
   const remote = ctx.remote.terminalWeb
   const store = createTerminalStore()
+  const terminalPanel = new TerminalPanelController()
+  ctx.reflect.provide('terminalPanel', terminalPanel)
   const injected = (): TerminalInjected => ({
     spawnTerminal: (sessionId, request) => remote.spawn(sessionId, request),
     writeTerminal: (sessionId, request) => remote.write(sessionId, request),
@@ -50,6 +53,7 @@ export function apply(ctx: ClientContext): void {
     readTerminal: (sessionId, request) => remote.read(sessionId, request),
     onTerminalOutput: listener => ctx.remote.$on('terminal/output', listener),
     onTerminalExit: listener => ctx.remote.$on('terminal/exit', listener),
+    terminalPanel,
   })
   ctx.slots.inject('shell.overlay', () => ctx.slots.register(
     { name: 'shell.overlay', id: 'terminal-panel', order: 0, store, inject: injected },
