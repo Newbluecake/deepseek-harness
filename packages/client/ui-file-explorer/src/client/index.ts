@@ -55,6 +55,9 @@ export function apply(ctx: ClientContext): void {
   })
   const store = createFileExplorerStore()
   const controller = new FileExplorerController()
+  // Expose the open-file control face so the conversation can open paths in
+  // the in-app preview when the browser and the Host are not the same machine.
+  ctx.reflect.provide('fileExplorer', controller)
   const terminalPanel = ctx.get('terminalPanel') as {
     close(): void
     toggle(): void

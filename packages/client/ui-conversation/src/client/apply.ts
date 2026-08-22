@@ -53,6 +53,14 @@ export const inject = [
   'conversationEvents', 'conversationViews',
 ]
 
+/** Hostnames where the browser and the Host run on the same machine. */
+const LOCAL_HOSTNAMES = new Set(['localhost', '127.0.0.1', '::1', '[::1]'])
+
+/** Whether the browser shares the Host filesystem (local, not remote, access). */
+function isLocalHost(): boolean {
+  return LOCAL_HOSTNAMES.has(window.location.hostname)
+}
+
 // Static no-session sources for the composer-bar hooks compartment: module
 // constants so the render side's per-source hook cache (observableHook) keeps
 // one identity across every no-session render.
@@ -399,7 +407,17 @@ export function apply(ctx: Context): void {
         fileMentions: owner => ctx.get('chatFileMentions')?.forClosing(owner),
         openFile: (path) => {
           const cwd = sessions.list.getSnapshot().byId[sessionId]?.cwd
-          return workspaces.openPath(resolveWorkspacePath(cwd, path))
+          const absPath = resolveWorkspacePath(cwd, path)
+          // On a remote browser the Host's native opener lands on the server
+          // machine, invisible to the user; open the in-app preview instead.
+          if (!isLocalHost()) {
+            const fileExplorer = ctx.get('fileExplorer') as { openFile: (filePath: string) => void } | undefined
+            if (fileExplorer !== undefined) {
+              fileExplorer.openFile(absPath)
+              return Promise.resolve()
+            }
+          }
+          return workspaces.openPath(absPath)
         },
         loadOlder: () => { void scoped.loadOlder() },
         loadImage: attachment => conversation.resolveImage(sessionId, attachment),
