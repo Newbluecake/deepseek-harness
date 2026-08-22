@@ -1,9 +1,12 @@
 /** Git changes list embedded in the session details column. */
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { GitChange } from '@deepseek-ai/dsh-file-explorer/types'
 import type { FileExplorerProps } from './contract/slots.ts'
 import css from './DiffViewer.module.css'
 import explorerCss from './FileExplorer.module.css'
+
+/** Poll interval for auto-detecting workspace changes while the diff view is open. */
+const POLL_INTERVAL_MS = 2000
 
 interface GitChangesViewerProps {
   sessionId: FileExplorerProps['sessionId']
@@ -52,9 +55,7 @@ export function GitChangesViewer({ sessionId, gitStatus, openFileDiff }: GitChan
   const [data, setData] = useState<ListData>({ loading: true, branch: '', staged: [], unstaged: [], error: null })
   const [query, setQuery] = useState('')
 
-  useEffect(() => {
-    setQuery('')
-    setData({ loading: true, branch: '', staged: [], unstaged: [], error: null })
+  const refresh = useCallback((): void => {
     void gitStatus(sessionId).then((result) => {
       if (result.ok) {
         setData({
@@ -67,7 +68,17 @@ export function GitChangesViewer({ sessionId, gitStatus, openFileDiff }: GitChan
       }
       else setData({ loading: false, branch: '', staged: [], unstaged: [], error: result.error.message })
     })
-  }, [sessionId])
+  }, [sessionId, gitStatus])
+
+  useEffect(() => {
+    setQuery('')
+    setData({ loading: true, branch: '', staged: [], unstaged: [], error: null })
+    refresh()
+    // Auto-detect workspace changes: poll git status while the diff view is
+    // open so agent edits appear without a manual refresh.
+    const timer = setInterval(refresh, POLL_INTERVAL_MS)
+    return () => { clearInterval(timer) }
+  }, [sessionId, refresh])
 
   const renderRow = (change: GitChange, scope: 'staged' | 'unstaged'): JSX.Element => (
     <button type="button" key={`${scope}:${change.path}`} className={css.chRow} title={change.path} onClick={() => { openFileDiff(change.path, scope) }}>
