@@ -6,7 +6,7 @@
  * session, and opens another session's terminal by addressing its owner
  * session for every read/write call.
  */
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
 import type { SessionId } from '@deepseek-ai/dsh-client-runtime/client'
 import type { TerminalWebSessionInfo } from '@deepseek-ai/dsh-terminal-web/types'
@@ -69,6 +69,8 @@ export function TerminalDock({
   const [spawning, setSpawning] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingValue, setEditingValue] = useState('')
+  const windowsRef = useRef(windows)
+  windowsRef.current = windows
 
   const refresh = useCallback(async (): Promise<TerminalWebSessionInfo[]> => {
     const result = await listAllTerminals()
@@ -91,6 +93,30 @@ export function TerminalDock({
     // Mount-only: `windows` is the rehydrated snapshot; `refresh`/`actions` are stable.
   }, [])
   useEffect(() => onTerminalExit(() => { void refresh() }), [onTerminalExit, refresh])
+
+  // Global keyboard shortcuts for the topmost open terminal window:
+  // Cmd/Ctrl+Shift+M minimizes it, Cmd/Ctrl+Shift+F toggles maximize. Capture
+  // phase so the shortcut wins over the focused terminal's own keystrokes.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (!(event.metaKey || event.ctrlKey) || !event.shiftKey) return
+      const open = Object.values(windowsRef.current).filter(window => !window.minimized)
+      if (open.length === 0) return
+      const top = open.reduce((a, b) => (a.z > b.z ? a : b))
+      const key = event.key.toLowerCase()
+      if (key === 'm') {
+        event.preventDefault()
+        event.stopPropagation()
+        actions.minimizeWindow(top.terminalId)
+      } else if (key === 'f') {
+        event.preventDefault()
+        event.stopPropagation()
+        actions.toggleMaximizeWindow(top.terminalId)
+      }
+    }
+    window.addEventListener('keydown', onKeyDown, true)
+    return () => { window.removeEventListener('keydown', onKeyDown, true) }
+  }, [actions])
 
   useEffect(() => {
     terminalPanel.attach({
