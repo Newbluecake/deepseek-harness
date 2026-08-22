@@ -55,6 +55,10 @@ function mountExplorer() {
       commits: [{ hash: '1234567890', parents: [], subject: 'Initial commit', author: 'Dev', date: 'today', refs: [{ kind: 'head' as const, name: 'feat/git-details' }] }],
     },
   }))
+  const searchFiles: FileExplorerProps['searchFiles'] = vi.fn(async () => ({
+    ok: true as const,
+    value: { matches: [{ path: 'src/main.ts', name: 'main.ts' }], truncated: false },
+  }))
   const common = {
     sessionId,
     useStore: hookOf(instance),
@@ -67,6 +71,7 @@ function mountExplorer() {
     gitStatus,
     fileDiff,
     gitLog,
+    searchFiles,
     openPanel: vi.fn(),
     closePanel: vi.fn(),
     setPanelPinned: vi.fn(),
@@ -80,7 +85,7 @@ function mountExplorer() {
       <GitTreeModal {...common as GitModalProps} />
     </>,
   )
-  return { fileDiff, gitLog, listDir }
+  return { fileDiff, gitLog, listDir, searchFiles }
 }
 
 describe('file explorer git navigation', () => {
@@ -151,6 +156,17 @@ describe('file explorer git navigation', () => {
     const file = await screen.findByTitle('/workspace/src/main.ts')
     expect(dir.compareDocumentPosition(file) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0)
     expect(file.getAttribute('aria-current')).toBe('location')
+  })
+
+  it('searches the whole workspace through the Host index', async () => {
+    const { searchFiles } = mountExplorer()
+
+    fireEvent.click(screen.getByRole('button', { name: '文件列表' }))
+    fireEvent.change(screen.getByPlaceholderText<HTMLInputElement>('搜索文件名…'), { target: { value: 'main' } })
+
+    await waitFor(() => { expect(searchFiles).toHaveBeenCalledWith(expect.any(String), { query: 'main' }) })
+    expect(await screen.findByTitle('src/main.ts')).toBeTruthy()
+    expect(screen.getByText('src/main.ts')).toBeTruthy()
   })
 
   it('shows current-branch commits in details before expanding the complete Git Tree', async () => {

@@ -25,6 +25,9 @@ import type {
   GitStatusResult,
   ListDirResult,
   ReadFileResult,
+  SearchFileMatch,
+  SearchFilesRequest,
+  SearchFilesResult,
 } from './types.ts'
 
 export type {
@@ -38,6 +41,9 @@ export type {
   GitStatusResult,
   ListDirResult,
   ReadFileResult,
+  SearchFileMatch,
+  SearchFilesRequest,
+  SearchFilesResult,
 } from './types.ts'
 
 declare module '@deepseek-ai/cordis' {
@@ -54,6 +60,8 @@ const MAX_GIT_BYTES = 200000
 const MAX_GIT_STDOUT_BYTES = 400000
 /** Maximum commits returned by one history graph. */
 const MAX_GIT_LOG_COMMITS = 300
+/** Maximum files returned by one filename search. */
+const MAX_SEARCH_MATCHES = 200
 
 /**
  * Read-only data face for the file-explorer UI. It reads the calling
@@ -180,6 +188,38 @@ export class FileExplorerService extends TypertRemoteService {
     return { workdir: root, branch: branchRun.text.trim(), commits: parseGitLog(run.text), truncated: run.truncated }
   }
 
+  /**
+   * Search the whole workspace for files whose repository-relative path
+   * matches a query. Lists the git index plus untracked files, so results
+   * cover unexpanded directories and skip `.git` and ignored build output.
+   * @param agent - exact live Agent resolved from the wire identity.
+   * @param request - the trimmed, lowercased query.
+   * @returns matching files in path order, capped at the service bound.
+   */
+  @Remote('searchFiles')
+  async searchFiles(agent: Agent, request: SearchFilesRequest): Promise<SearchFilesResult> {
+    const root = this.workspaceRoot(agent)
+    const query = request.query.trim().toLowerCase()
+    if (query === '') return { matches: [], truncated: false }
+    const empty = (): { text: string; truncated: boolean } => ({ text: '', truncated: false })
+    const [tracked, untracked] = await Promise.all([
+      this.runGit('git --no-optional-locks ls-files', 30000, root).catch(empty),
+      this.runGit('git --no-optional-locks ls-files --others --exclude-standard', 30000, root).catch(empty),
+    ])
+    const seen = new Set<string>()
+    const matches: SearchFileMatch[] = []
+    for (const run of [tracked, untracked]) {
+      for (const raw of run.text.split('\n')) {
+        const path = raw.trim()
+        if (path === '' || seen.has(path) || !path.toLowerCase().includes(query)) continue
+        seen.add(path)
+        matches.push({ path, name: basename(path) })
+        if (matches.length >= MAX_SEARCH_MATCHES) return { matches, truncated: true }
+      }
+    }
+    return { matches, truncated: false }
+  }
+
   /** Resolve one session's workspace root, falling back to the process-wide root. */
   private workspaceRoot(agent: Agent): string {
     return agent.session.header.cwd ?? this.ctx.sandboxPolicy.workspaceRoot
@@ -271,6 +311,12 @@ function refName(name: string): string {
   if (name.startsWith('refs/remotes/')) return name.slice('refs/remotes/'.length)
   if (name.startsWith('refs/tags/')) return name.slice('refs/tags/'.length)
   return name
+}
+
+/** Last path segment of a repository-relative `git ls-files` path. */
+function basename(path: string): string {
+  const idx = path.lastIndexOf('/')
+  return idx < 0 ? path : path.slice(idx + 1)
 }
 
 export default FileExplorerService

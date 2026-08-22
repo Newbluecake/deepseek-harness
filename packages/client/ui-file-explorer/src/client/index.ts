@@ -46,6 +46,7 @@ export function apply(ctx: ClientContext): void {
     gitStatus: sessionId => remote.gitStatus(sessionId),
     fileDiff: (sessionId, request) => remote.fileDiff(sessionId, request),
     gitLog: sessionId => remote.gitLog(sessionId),
+    searchFiles: (sessionId, request) => remote.searchFiles(sessionId, request),
     openPanel: () => { layout?.openDetails() },
     closePanel: () => { layout?.closeDetails() },
     setPanelPinned: (pinned: boolean) => { panelPinned = pinned },

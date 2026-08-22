@@ -108,3 +108,25 @@ export interface GitLogResult {
   /** Whether the history was truncated. */
   truncated: boolean
 }
+
+/** One file matching a workspace-wide filename search. */
+export interface SearchFileMatch {
+  /** Repository-relative path. */
+  path: string
+  /** Basename of the matched file. */
+  name: string
+}
+
+/** Request for a workspace-wide filename search. */
+export interface SearchFilesRequest {
+  /** Trimmed, lowercased query matched against the repository-relative path. */
+  query: string
+}
+
+/** Successful workspace-wide filename search. */
+export interface SearchFilesResult {
+  /** Matching files in stable path order, capped at the service bound. */
+  matches: SearchFileMatch[]
+  /** Whether {@link SearchFilesResult.matches} was truncated at the cap. */
+  truncated: boolean
+}

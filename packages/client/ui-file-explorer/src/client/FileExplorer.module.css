@@ -268,6 +268,17 @@
   font-variant-numeric: tabular-nums;
 }
 
+.searchPath {
+  flex: none;
+  max-width: 50%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  font-family: var(--dfe-font-code);
+}
+
 .emptyInline {
   display: flex;
   align-items: center;

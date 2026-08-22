@@ -4,8 +4,8 @@
  * lazily-loaded expandable directory tree. Clicking a file opens the code
  * viewer through the shared store; clicking a directory toggles its children.
  */
-import { useEffect, useState } from 'react'
-import type { FileExplorerEntry } from '@deepseek-ai/dsh-file-explorer/types'
+import { useEffect, useRef, useState } from 'react'
+import type { FileExplorerEntry, SearchFileMatch } from '@deepseek-ai/dsh-file-explorer/types'
 import type { FileExplorerProps } from './contract/slots.ts'
 import { GitBranchViewer } from './GitBranchViewer.tsx'
 import { GitChangesViewer } from './GitChangesViewer.tsx'
@@ -243,6 +243,7 @@ export function FileExplorer({
   listDir,
   gitStatus,
   gitLog,
+  searchFiles,
   openPanel,
   closePanel,
   setPanelPinned,
@@ -255,6 +256,10 @@ export function FileExplorer({
   const [tree, setTree] = useState<Record<string, TreeNode>>({})
   const [query, setQuery] = useState('')
   const [locatePath, setLocatePath] = useState<string | null>(null)
+  const [searchMatches, setSearchMatches] = useState<SearchFileMatch[] | null>(null)
+  const [searching, setSearching] = useState(false)
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const searchToken = useRef(0)
 
   const loadRoot = (): void => {
     setRootState({ loading: true, path: null, error: null })
@@ -336,13 +341,51 @@ export function FileExplorer({
   // and expand the file's ancestor directories while highlighting the file.
   const locateFile = (path: string): void => {
     actions.setPanel('files')
-    setQuery('')
+    onSearchChange('')
     setLocatePath(null)
     const segments = path.split(/[/\\]/).filter(segment => segment !== '')
     void expandAndSelect(segments)
   }
 
+  // Debounced whole-workspace search: typing queries the Host git index, so
+  // files in unexpanded directories are found too. A monotonic token drops
+  // stale in-flight results, and a rejection settles the pending state.
+  const onSearchChange = (value: string): void => {
+    setQuery(value)
+    if (searchTimer.current !== null) clearTimeout(searchTimer.current)
+    const trimmed = value.trim()
+    if (trimmed === '') {
+      searchToken.current++
+      setSearchMatches(null)
+      setSearching(false)
+      return
+    }
+    const token = ++searchToken.current
+    setSearching(true)
+    searchTimer.current = setTimeout(() => {
+      searchFiles(sessionId, { query: trimmed }).then((result) => {
+        if (searchToken.current !== token) return
+        setSearchMatches(result.ok ? result.value.matches : null)
+        setSearching(false)
+      }, () => {
+        if (searchToken.current !== token) return
+        setSearchMatches(null)
+        setSearching(false)
+      })
+    }, 200)
+  }
+
+  // Open one search result in the code viewer.
+  const openSearchMatch = (match: SearchFileMatch): void => {
+    actions.setOpenFile({ name: match.name, type: 'file', path: match.path, size: null })
+  }
+
+  useEffect(() => () => {
+    if (searchTimer.current !== null) clearTimeout(searchTimer.current)
+  }, [])
+
   const q = query.trim().toLowerCase()
+  const searchingActive = searching || (q !== '' && searchMatches === null)
   const rows: JSX.Element[] = []
 
   const renderNodes = (path: string, depth: number): void => {
@@ -391,14 +434,31 @@ export function FileExplorer({
     }
   }
 
-  if (rootState.loading) {
+  if (q !== '') {
+    if (searchingActive) {
+      rows.push(<div key="searching" className={css.empty}><Spinner /><span className={css.muted}>搜索中…</span></div>)
+    } else if (searchMatches === null || searchMatches.length === 0) {
+      rows.push(<div key="nomatch" className={css.empty}><span className={css.icon}><SearchIcon /></span><span className={css.muted}>无匹配结果</span></div>)
+    } else {
+      for (const match of searchMatches) {
+        rows.push(
+          <div key={match.path} className={css.row} style={{ paddingLeft: '6px' }} title={match.path} onClick={() => { openSearchMatch(match) }}>
+            <span className={css.twistSpacer} />
+            <span className={css.icon}><FileTypeIcon name={match.name} /></span>
+            <span className={css.name}>{match.name}</span>
+            <span className={css.searchPath}>{match.path}</span>
+          </div>,
+        )
+      }
+    }
+  } else if (rootState.loading) {
     rows.push(<div key="loading" className={css.empty}><Spinner /><span className={css.muted}>加载中…</span></div>)
   } else if (rootState.error !== null) {
     rows.push(<div key="error" className={`${css.empty} ${css.error}`}>{rootState.error}</div>)
   } else if (rootState.path !== null) {
     renderNodes(rootState.path, 0)
     if (rows.length === 0) {
-      rows.push(q === '' ? <div key="empty" className={css.empty}><span className={css.icon}><FolderIcon size={20} /></span><span className={css.muted}>空目录</span></div> : <div key="nomatch" className={css.empty}><span className={css.icon}><SearchIcon /></span><span className={css.muted}>无匹配结果</span></div>)
+      rows.push(<div key="empty" className={css.empty}><span className={css.icon}><FolderIcon size={20} /></span><span className={css.muted}>空目录</span></div>)
     }
   }
 
@@ -422,8 +482,8 @@ export function FileExplorer({
         <>
           <div className={css.search}>
             <span className={css.searchIcon}><SearchIcon /></span>
-            <input className={css.searchInput} type="text" placeholder="搜索文件名…" value={query} onChange={(event) => { setQuery(event.target.value) }} />
-            {query !== '' && <button type="button" className={css.searchClear} title="清除" onClick={() => { setQuery('') }}><ClearIcon /></button>}
+            <input className={css.searchInput} type="text" placeholder="搜索文件名…" value={query} onChange={(event) => { onSearchChange(event.target.value) }} />
+            {query !== '' && <button type="button" className={css.searchClear} title="清除" onClick={() => { onSearchChange('') }}><ClearIcon /></button>}
           </div>
           {rootState.path !== null && <div className={css.rootPath} title={rootState.path}>{rootState.path}</div>}
           <div className={css.list}>{rows}</div>

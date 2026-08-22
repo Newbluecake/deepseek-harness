@@ -33,6 +33,8 @@ import type {
   GitStatusResult,
   ListDirResult,
   ReadFileResult,
+  SearchFilesRequest,
+  SearchFilesResult,
 } from '@deepseek-ai/dsh-file-explorer/types'
 import type { createFileExplorerStore } from '../store.ts'
 
@@ -60,6 +62,8 @@ export interface FileExplorerInjected {
   fileDiff: (sessionId: SessionId, request: FileDiffRequest) => Promise<RemoteResult<FileDiffResult>>
   /** Resolve the commit-history graph across all refs. */
   gitLog: (sessionId: SessionId) => Promise<RemoteResult<GitLogResult>>
+  /** Search the whole workspace for files matching a path substring. */
+  searchFiles: (sessionId: SessionId, request: SearchFilesRequest) => Promise<RemoteResult<SearchFilesResult>>
   /** Open the session details column. */
   openPanel: () => void
   /** Close the session details column. */
