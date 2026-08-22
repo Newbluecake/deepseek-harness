@@ -26,7 +26,7 @@ export type {
 } from './contract/slots.ts'
 
 /** Required services: the slot registry and the file-explorer Remote namespace. */
-export const inject = ['slots', 'remote', 'remote.fileExplorer', 'terminalPanel']
+export const inject = ['slots', 'remote', 'remote.fileExplorer', 'terminalPanel', 'surfaceCollapse']
 
 /**
  * Register the tree and the two modal entries once their slot declarations
@@ -58,6 +58,14 @@ export function apply(ctx: ClientContext): void {
     close(): void
     toggle(): void
   }
+  const surfaceCollapse = ctx.get('surfaceCollapse') as {
+    subscribe(listener: (action: 'collapse' | 'expand') => void): () => void
+  }
+  // Collapse/expand the modals together with the terminal windows.
+  ctx.effect(() => surfaceCollapse.subscribe((action) => {
+    if (action === 'collapse') controller.collapseModals()
+    else controller.expandModals()
+  }), 'file-explorer: surface collapse subscription')
 
   // Priority -1 shadows ui-conversation's DetailsPanel (the priority-0
   // occupant): `details` is a single slot, so the lowest priority renders

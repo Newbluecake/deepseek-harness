@@ -37,8 +37,9 @@ function CloseIcon(): JSX.Element {
  */
 export function GitModal({ sessionId, useStore, actions, fileDiff }: GitModalProps) {
   const file = useStore(state => state.openFileDiff)
+  const modalsMinimized = useStore(state => state.modalsMinimized)
   const { ref, zIndex } = useModalFocus(file?.path)
-  if (file === null) return null
+  if (file === null || modalsMinimized) return null
 
   const close = (): void => { actions.setOpenFileDiff(null) }
 

@@ -14,6 +14,8 @@ export class FileExplorerController {
   showDiff(): void { const actions = this.#require(); actions.setGitTreeOpen(false); actions.setPanel('diff') }
   showGitTree(): void { const actions = this.#require(); actions.setGitTreeOpen(false); actions.setPanel('tree') }
   closeGitTree(): void { this.#require().setGitTreeOpen(false) }
+  collapseModals(): void { this.#require().setModalsMinimized(true) }
+  expandModals(): void { this.#require().setModalsMinimized(false) }
 
   #require(): FileExplorerActions {
     if (this.#actions === undefined) throw new Error('fileExplorerController: viewing actions not wired')

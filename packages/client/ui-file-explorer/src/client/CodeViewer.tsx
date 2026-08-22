@@ -53,6 +53,7 @@ function tokenClass(type: HighlightToken['type']): string | undefined {
  */
 export function CodeViewer({ sessionId, useStore, actions, readFile }: CodeViewerProps) {
   const file = useStore(state => state.openFile)
+  const modalsMinimized = useStore(state => state.modalsMinimized)
   const { ref, zIndex } = useModalFocus(file?.path)
   const [content, setContent] = useState({ loading: false, text: '', truncated: false, error: null as string | null })
 
@@ -65,7 +66,7 @@ export function CodeViewer({ sessionId, useStore, actions, readFile }: CodeViewe
     })
   }, [file?.path])
 
-  if (file === null) return null
+  if (file === null || modalsMinimized) return null
 
   const tokens = tokenize(content.text, usesHashComments(file.name))
 

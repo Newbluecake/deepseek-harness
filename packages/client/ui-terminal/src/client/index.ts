@@ -13,7 +13,7 @@ import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import type { TerminalInjected } from './contract/slots.ts'
 import { createTerminalStore } from './store.ts'
 import { TerminalDock } from './TerminalDock.tsx'
-import { TerminalPanelController } from './service.ts'
+import { SurfaceCollapseService, TerminalPanelController } from './service.ts'
 // The xterm.js base stylesheet, inlined into the bundle (the build's CSS asset
 // pipeline cannot resolve bare package CSS specifiers, so it ships as a string).
 import xtermCss from './xterm.css?inline'
@@ -42,6 +42,8 @@ export function apply(ctx: ClientContext): void {
   const store = createTerminalStore()
   const terminalPanel = new TerminalPanelController()
   ctx.reflect.provide('terminalPanel', terminalPanel)
+  const surfaceCollapse = new SurfaceCollapseService()
+  ctx.reflect.provide('surfaceCollapse', surfaceCollapse)
   const injected = (): TerminalInjected => ({
     spawnTerminal: (sessionId, request) => remote.spawn(sessionId, request),
     writeTerminal: (sessionId, request) => remote.write(sessionId, request),
@@ -54,6 +56,8 @@ export function apply(ctx: ClientContext): void {
     readTerminal: (sessionId, request) => remote.read(sessionId, request),
     onTerminalOutput: listener => ctx.remote.$on('terminal/output', listener),
     onTerminalExit: listener => ctx.remote.$on('terminal/exit', listener),
+    collapseAllSurfaces: () => { surfaceCollapse.collapseAll() },
+    expandAllSurfaces: () => { surfaceCollapse.expandAll() },
     terminalPanel,
   })
   ctx.slots.inject('shell.overlay', () => ctx.slots.register(

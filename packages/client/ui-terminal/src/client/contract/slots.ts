@@ -79,6 +79,10 @@ export interface TerminalInjected {
   onTerminalOutput: (listener: (payload: TerminalOutputPayload) => void) => () => void
   /** Subscribe to forwarded terminal exit notices; returns the unsubscribe. */
   onTerminalExit: (listener: (payload: TerminalExitPayload) => void) => () => void
+  /** Broadcast a collapse-all to other floating-surface packages. */
+  collapseAllSurfaces: () => void
+  /** Broadcast an expand-all to other floating-surface packages. */
+  expandAllSurfaces: () => void
   /** Terminal-owned cross-plugin Dock controller. */
   terminalPanel: TerminalPanelController
 }

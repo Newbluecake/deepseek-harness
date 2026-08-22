@@ -59,6 +59,7 @@ export function TerminalDock({
   useSessions, useStore, actions,
   spawnTerminal, writeTerminal, resizeTerminal, renameTerminal, killTerminal,
   listAllTerminals, readTerminal, onTerminalOutput, onTerminalExit, terminalPanel,
+  collapseAllSurfaces, expandAllSurfaces,
 }: TerminalPanelProps) {
   const dockOpen = useStore(state => state.dockOpen)
   const windows = useStore(state => state.windows)
@@ -105,12 +106,14 @@ export function TerminalDock({
         event.preventDefault()
         event.stopPropagation()
         actions.collapseAllWindows()
+        collapseAllSurfaces()
         return
       }
       if (event.code === 'BracketRight') {
         event.preventDefault()
         event.stopPropagation()
         actions.expandAllWindows()
+        expandAllSurfaces()
         return
       }
       const open = Object.values(windowsRef.current).filter(window => !window.minimized)
@@ -216,7 +219,10 @@ export function TerminalDock({
                     type="button"
                     className={css.dockToggleBtn}
                     title={hasOpenWindows ? '收起所有终端' : '展开所有终端'}
-                    onClick={() => { if (hasOpenWindows) actions.collapseAllWindows(); else actions.expandAllWindows() }}
+                    onClick={() => {
+                      if (hasOpenWindows) { actions.collapseAllWindows(); collapseAllSurfaces() }
+                      else { actions.expandAllWindows(); expandAllSurfaces() }
+                    }}
                   >
                     {hasOpenWindows ? '收起全部' : '展开全部'}
                   </button>

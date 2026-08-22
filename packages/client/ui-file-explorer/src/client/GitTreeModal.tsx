@@ -35,8 +35,9 @@ function CloseIcon(): JSX.Element {
  */
 export function GitTreeModal({ sessionId, useStore, actions, gitLog }: GitModalProps) {
   const open = useStore(state => state.gitTreeOpen)
+  const modalsMinimized = useStore(state => state.modalsMinimized)
   const { ref, zIndex } = useModalFocus(open)
-  if (!open) return null
+  if (!open || modalsMinimized) return null
   const close = (): void => { actions.setGitTreeOpen(false) }
 
   return (

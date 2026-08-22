@@ -24,6 +24,8 @@ type FileExplorerViewState = {
   openFileDiff: OpenFileDiff | null
   /** Whether the Git Tree modal is open. */
   gitTreeOpen: boolean
+  /** Whether the modals are collapsed by a global collapse-all; their open state is preserved. */
+  modalsMinimized: boolean
 }
 
 /** Mutation API for the viewing state (the declared store actions). */
@@ -32,6 +34,7 @@ type FileExplorerViewActions = {
   setOpenFile: (draft: FileExplorerViewState, file: FileExplorerEntry | null) => void
   setOpenFileDiff: (draft: FileExplorerViewState, file: OpenFileDiff | null) => void
   setGitTreeOpen: (draft: FileExplorerViewState, open: boolean) => void
+  setModalsMinimized: (draft: FileExplorerViewState, minimized: boolean) => void
 }
 
 /**
@@ -40,12 +43,13 @@ type FileExplorerViewActions = {
  */
 export function createFileExplorerStore(): EngineStoreHandle<FileExplorerViewState, FileExplorerViewActions> {
   return defineStore({
-    init: (): FileExplorerViewState => ({ panel: 'diff', openFile: null, openFileDiff: null, gitTreeOpen: false }),
+    init: (): FileExplorerViewState => ({ panel: 'diff', openFile: null, openFileDiff: null, gitTreeOpen: false, modalsMinimized: false }),
     actions: {
       setPanel: (d, panel) => { d.panel = panel; d.openFile = null; d.openFileDiff = null },
       setOpenFile: (d, file) => { d.openFile = file; if (file !== null) { d.openFileDiff = null; d.gitTreeOpen = false } },
       setOpenFileDiff: (d, file) => { d.openFileDiff = file; if (file !== null) { d.openFile = null; d.gitTreeOpen = false } },
       setGitTreeOpen: (d, open) => { d.gitTreeOpen = open; if (open) { d.openFile = null; d.openFileDiff = null } },
+      setModalsMinimized: (d, minimized) => { d.modalsMinimized = minimized },
     },
   })
 }
