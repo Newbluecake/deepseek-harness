@@ -85,7 +85,7 @@ export class FileExplorerService extends TypertRemoteService {
   @Remote('listDir')
   async listDir(agent: Agent, path: string | null): Promise<ListDirResult> {
     const root = this.workspaceRoot(agent)
-    const target = await this.ctx.fs.resolve(path ?? root, {})
+    const target = await this.ctx.fs.resolve(path ?? root, { cwd: root })
     const info = await this.ctx.fs.stat(target)
     const entries = (await this.ctx.fs.listDir(target)).filter(entry => entry.name !== '.git')
     return {
