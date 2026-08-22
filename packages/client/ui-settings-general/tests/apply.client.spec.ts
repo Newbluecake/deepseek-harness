@@ -31,17 +31,21 @@ async function bench(isLoopback = true) {
   const locale = new LocaleRuntime(ctx)
   locale.setLocale('zh')
   ctx.provide('locale', locale)
-  const settingsDescribe = vi.fn(() => Promise.resolve({
-    rpcId: 'settings-general' as never,
-    result: {
-      ok: true as const,
-      value: {
-        writable: true,
-        hasDocument: true,
-        namespaces: [],
+  // A non-loopback page stands in for a caller the privileged fence refuses:
+  // the settings probe read gets the carrier's plain 403.
+  const settingsDescribe = isLoopback
+    ? vi.fn(() => Promise.resolve({
+      rpcId: 'settings-general' as never,
+      result: {
+        ok: true as const,
+        value: {
+          writable: true,
+          hasDocument: true,
+          namespaces: [],
+        },
       },
-    },
-  }))
+    }))
+    : vi.fn(() => Promise.reject(new Error('transport failure for /api/settings.describe: HTTP 403')))
   const settingsOpenDocument = vi.fn(() => Promise.resolve({
     rpcId: 'settings-open' as never,
     result: { ok: true as const, value: { opened: true as const } },
@@ -168,13 +172,14 @@ describe('ui-settings-general apply', () => {
     await vi.waitFor(() => { expect(b.settingsDescribe).toHaveBeenCalledTimes(2) })
   })
 
-  it('withholds the loopback-only document action off-loopback', async () => {
+  it('withholds the document action once the fence refuses the settings plane', async () => {
     const b = await bench(false)
     declare(b.slots)
     const fiber = b.ctx.plugin({ inject: [...inject], apply })
     await fiber.await()
+    // The probe read settles the mirror refused; the action never registers.
+    await vi.waitFor(() => { expect(b.settingsDescribe).toHaveBeenCalledOnce() })
     expect(b.slots.entries('settings.action')).toEqual([])
-    expect(b.settingsDescribe).not.toHaveBeenCalled()
     await fiber.dispose()
     for (const [name] of SEATS) expect(b.slots.entries(name)).toEqual([])
   })

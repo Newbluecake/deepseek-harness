@@ -223,12 +223,32 @@ describe('edge joins', () => {
   })
 
   it('reports a terminally unavailable settings mirror precisely', async () => {
-    const { face } = api()
+    const { face } = api({
+      describeSettings: () => Promise.reject(new Error('transport failure for /api/settings.describe: HTTP 403')),
+    })
     const store = new ModelsSettingsStore(
       face,
       settingsSchema,
-      new SettingsDescribeMirror(face, 'memory'),
+      new SettingsDescribeMirror(face),
     )
+    await store.load()
+    expect(store.store.getSnapshot()).toMatchObject({
+      status: 'error',
+      error: 'settings are unavailable in this browser',
+    })
+  })
+
+  it('falls back to the unavailable message when the mirror holds neither view nor error', async () => {
+    const { face } = api()
+    // A structural face over the contract: a mirror that never read (the
+    // initial idle state has neither an answer nor a failure message).
+    const unread = {
+      getSnapshot: () => ({ status: 'idle' as const, view: undefined, error: null }),
+      subscribe: () => () => {},
+      ensure: () => Promise.resolve(),
+      acceptView: () => {},
+    }
+    const store = new ModelsSettingsStore(face, settingsSchema, unread)
     await store.load()
     expect(store.store.getSnapshot()).toMatchObject({
       status: 'error',

@@ -51,7 +51,6 @@ export function apply(ctx: ClientContext): void {
   const connection = ctx.get('connection') as ConnectionHandle
   const mirror = new SettingsDescribeMirror(
     connection.api,
-    connection.isLoopback ? 'host' : 'memory',
   )
   ctx.effect(() => {
     const disposers = [

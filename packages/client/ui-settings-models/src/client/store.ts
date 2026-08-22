@@ -146,7 +146,11 @@ export class ModelsSettingsStore {
       if (!providersResponse.result.ok) throw new Error(providersResponse.result.error.message)
       const mirrored = this.describeFace.getSnapshot()
       if (mirrored.view === undefined) {
-        throw new Error(mirrored.error ?? 'settings are unavailable in this browser')
+        // A fence refusal is terminal for this caller, not a transient miss:
+        // report the unavailable state rather than the transport diagnostic.
+        throw new Error(mirrored.status === 'unavailable'
+          ? 'settings are unavailable in this browser'
+          : mirrored.error ?? 'settings are unavailable in this browser')
       }
       providers = providersResponse.result.value.providers
       writable = mirrored.view.writable

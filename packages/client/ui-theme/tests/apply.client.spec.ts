@@ -40,13 +40,17 @@ async function bench(isLoopback = true) {
     secrets: [],
     revision: 0,
   })
-  const describe = vi.fn(() => Promise.resolve({
-    rpcId: 'theme-describe' as never,
-    result: {
-      ok: true as const,
-      value: { writable: true, hasDocument: true, namespaces: [namespace()] },
-    },
-  }))
+  // A non-loopback page stands in for a caller the privileged fence refuses:
+  // the probe read gets the carrier's plain 403, so settings stay memory-mode.
+  const describe = isLoopback
+    ? vi.fn(() => Promise.resolve({
+      rpcId: 'theme-describe' as never,
+      result: {
+        ok: true as const,
+        value: { writable: true, hasDocument: true, namespaces: [namespace()] },
+      },
+    }))
+    : vi.fn(() => Promise.reject(new Error('transport failure for /api/settings.describe: HTTP 403')))
   const mutate = vi.fn((request: { ops: { value: string }[] }) => {
     preference = request.ops[0]!.value
     return Promise.resolve({
@@ -152,9 +156,13 @@ describe('ui-theme apply', () => {
     declareItems(remote.slots)
     await remote.ctx.plugin({ inject: [...inject], apply }).await()
     const remoteTheme = remote.ctx.get('theme') as ThemeRuntime
+    // The fence refused the probe read, so the scope is memory-mode: the
+    // change applies to this process only and never reaches the wire.
+    await vi.waitFor(() => { expect(remote.describe).toHaveBeenCalledTimes(1) })
     remoteTheme.setTheme('dark')
     await Promise.resolve()
-    expect(remote.describe).not.toHaveBeenCalled()
+    expect(remoteTheme.getTheme().preference).toBe('dark')
+    expect(remote.describe).toHaveBeenCalledTimes(1)
     expect(remote.mutate).not.toHaveBeenCalled()
   })
 

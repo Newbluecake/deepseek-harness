@@ -91,13 +91,40 @@ describe('SettingsDescribeMirror', () => {
     expect(describeCall).toHaveBeenCalledTimes(1)
   })
 
-  it('memory persistence is terminally unavailable and never touches the wire', async () => {
+  it('settles terminally unavailable when the privileged fence refuses the read, until a reset re-probes', async () => {
     const describeCall = vi.fn()
-    const mirror = new SettingsDescribeMirror({ settings: { describe: describeCall } } as never, 'memory')
+      .mockRejectedValueOnce(new Error('transport failure for /api/settings.describe: HTTP 403'))
+      .mockResolvedValue(described([view('theme', 1)]))
+    const mirror = new SettingsDescribeMirror({ settings: { describe: describeCall } } as never)
     await mirror.ensure()
+    expect(mirror.getSnapshot()).toMatchObject({ status: 'unavailable', view: undefined })
+    // Terminal: ensure does not spend another wire read on a refusal that
+    // cannot change within this connection.
+    await mirror.ensure()
+    expect(describeCall).toHaveBeenCalledTimes(1)
+    // A connection reset re-probes: the refusal belonged to that generation.
     await mirror.load()
-    expect(mirror.getSnapshot()).toEqual({ status: 'unavailable', view: undefined, error: null })
-    expect(describeCall).not.toHaveBeenCalled()
+    expect(mirror.getSnapshot()).toMatchObject({ status: 'ready' })
+    expect(describeCall).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps a held view serving when a later refresh hits the fence', async () => {
+    const describeCall = vi.fn()
+      .mockResolvedValueOnce(described([view('theme', 1)]))
+      .mockRejectedValueOnce(new Error('transport failure for /api/settings.describe: HTTP 403'))
+    const mirror = new SettingsDescribeMirror({ settings: { describe: describeCall } } as never)
+    await mirror.load()
+    await mirror.load()
+    // A mid-session 403 with a document already held is transient (held view
+    // keeps serving); only a refusal before the first answer is terminal.
+    expect(mirror.getSnapshot()).toMatchObject({ status: 'ready', view: { namespaces: [view('theme', 1)] } })
+  })
+
+  it('records a non-Error rejection as its string form', async () => {
+    const describeCall = vi.fn().mockRejectedValue('settings exploded')
+    const mirror = new SettingsDescribeMirror({ settings: { describe: describeCall } } as never)
+    await mirror.load()
+    expect(mirror.getSnapshot()).toMatchObject({ status: 'idle', view: undefined, error: 'settings exploded' })
   })
 
   it('acceptView folds one write answer into the held view without a wire read', async () => {

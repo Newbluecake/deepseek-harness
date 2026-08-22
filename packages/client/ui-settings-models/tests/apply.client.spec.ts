@@ -153,8 +153,13 @@ describe('ui-settings-models apply', () => {
     expect(() => b.locale.register('settings.models', 'en', {})).not.toThrow()
   })
 
-  it('keeps remote-browser acknowledgement in process memory', async () => {
-    const b = await bench(false)
+  it('keeps fence-refused acknowledgement in process memory', async () => {
+    // A remote caller the privileged fence refuses: the settings probe read
+    // gets the carrier's plain 403, so the scope settles to memory mode.
+    const refused = {
+      describe: () => Promise.reject(new Error('transport failure for /api/settings.describe: HTTP 403')),
+    }
+    const b = await bench(false, refused)
     declare(b.slots)
     await b.ctx.plugin({ inject: [...inject], apply }).await()
     const entry = b.slots.entries('settings.onboarding')
@@ -164,8 +169,10 @@ describe('ui-settings-models apply', () => {
     )()
 
     await injected.controller.load()
-    expect(injected.controller.store.getSnapshot()).toEqual({
-      status: 'ready', acknowledged: false, error: null,
+    await vi.waitFor(() => {
+      expect(injected.controller.store.getSnapshot()).toEqual({
+        status: 'ready', acknowledged: false, error: null,
+      })
     })
   })
 })
