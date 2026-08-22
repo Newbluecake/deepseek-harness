@@ -3,8 +3,9 @@
  * control and the full path in the footer. The open file rides the shared
  * viewing store, so the tree's click drives this entry.
  */
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { CodeViewerProps } from './contract/slots.ts'
+import { MarkdownText } from '@deepseek-ai/dsh-client-ui-primitives'
 import { tokenize, usesHashComments, type HighlightToken } from './highlight.ts'
 import { useModalFocus } from './useModalFocus.ts'
 import css from './CodeViewer.module.css'
@@ -36,6 +37,32 @@ function Spinner(): JSX.Element {
   return <span className={css.spinner} />
 }
 
+/** Whether the file is a Markdown document by extension. */
+function isMarkdownFile(name: string): boolean {
+  const lower = name.toLowerCase()
+  return lower.endsWith('.md') || lower.endsWith('.markdown')
+}
+
+/** Icon toggling to the rendered-Markdown view. */
+function PreviewIcon(): JSX.Element {
+  return (
+    <svg {...svgProps}>
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+      <circle cx={12} cy={12} r={3} />
+    </svg>
+  )
+}
+
+/** Icon toggling to the raw-source view. */
+function SourceIcon(): JSX.Element {
+  return (
+    <svg {...svgProps}>
+      <polyline points="16 18 22 12 16 6" />
+      <polyline points="8 6 2 12 8 18" />
+    </svg>
+  )
+}
+
 function tokenClass(type: HighlightToken['type']): string | undefined {
   switch (type) {
     case 'comment': return css.tokCom
@@ -56,10 +83,13 @@ export function CodeViewer({ sessionId, useStore, actions, readFile }: CodeViewe
   const modalsMinimized = useStore(state => state.modalsMinimized)
   const { ref, zIndex } = useModalFocus(file?.path)
   const [content, setContent] = useState({ loading: false, text: '', truncated: false, error: null as string | null })
+  const [markdownMode, setMarkdownMode] = useState<'rendered' | 'raw'>('rendered')
+  const copyLabels = useMemo(() => ({ copyLabel: '复制', copiedLabel: '已复制' }), [])
 
   useEffect(() => {
     if (file === null) { setContent({ loading: false, text: '', truncated: false, error: null }); return }
     setContent({ loading: true, text: '', truncated: false, error: null })
+    setMarkdownMode('rendered')
     readFile(sessionId, file.path).then((result) => {
       if (result.ok) setContent({ loading: false, text: result.value.content, truncated: result.value.truncated, error: null })
       else setContent({ loading: false, text: '', truncated: false, error: result.error.message })
@@ -68,6 +98,7 @@ export function CodeViewer({ sessionId, useStore, actions, readFile }: CodeViewe
 
   if (file === null || modalsMinimized) return null
 
+  const isMarkdown = isMarkdownFile(file.name)
   const tokens = tokenize(content.text, usesHashComments(file.name))
 
   let body: JSX.Element
@@ -75,6 +106,8 @@ export function CodeViewer({ sessionId, useStore, actions, readFile }: CodeViewe
     body = <div className={css.empty}><Spinner /><span className={css.muted}>读取中…</span></div>
   } else if (content.error !== null) {
     body = <div className={`${css.empty} ${css.error}`}>{content.error}</div>
+  } else if (isMarkdown && markdownMode === 'rendered') {
+    body = <div className={css.markdown}><MarkdownText text={content.text} codeLabels={copyLabels} /></div>
   } else {
     body = (
       <pre className={css.pre}>
@@ -91,6 +124,17 @@ export function CodeViewer({ sessionId, useStore, actions, readFile }: CodeViewe
       <div ref={ref} className={css.card}>
         <div className={css.head}>
           <span className={css.title}><FileIcon /> {file.name}</span>
+          {isMarkdown && (
+            <button
+              type="button"
+              className={css.modeBtn}
+              title={markdownMode === 'rendered' ? '查看源码' : '查看渲染'}
+              onClick={() => { setMarkdownMode(mode => (mode === 'rendered' ? 'raw' : 'rendered')) }}
+            >
+              {markdownMode === 'rendered' ? <SourceIcon /> : <PreviewIcon />}
+              {markdownMode === 'rendered' ? '源码' : '预览'}
+            </button>
+          )}
           <button type="button" className={css.close} title="关闭" onClick={() => { actions.setOpenFile(null) }}><CloseIcon /></button>
         </div>
         <div className={css.body}>
