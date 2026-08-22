@@ -408,10 +408,12 @@ export function FileExplorer({
         continue
       }
       const indent = `${depth * 14 + 6}px`
-      const selected = openFile !== null ? openFile.path === entry.path : locatePath === entry.path
+      const located = openFile === null && locatePath === entry.path
+      const selected = openFile !== null ? openFile.path === entry.path : located
+      const highlightCls = located ? ` ${css.rowLocated}` : selected ? ` ${css.rowSelected}` : ''
       if (entry.type === 'directory') {
         rows.push(
-          <div key={entry.path} className={selected ? `${css.row} ${css.rowDir} ${css.rowSelected}` : `${css.row} ${css.rowDir}`} style={{ paddingLeft: indent }} title={entry.path} aria-current={selected ? 'location' : undefined} onClick={() => { toggleDir(entry.path) }}>
+          <div key={entry.path} className={`${css.row} ${css.rowDir}${highlightCls}`} style={{ paddingLeft: indent }} title={entry.path} aria-current={selected ? 'location' : undefined} onClick={() => { toggleDir(entry.path) }}>
             <span className={css.twist}>{expanded ? '▾' : '▸'}</span>
             <span className={`${css.icon} ${css.iconDir}`}><FolderIcon /></span>
             <span className={css.name}>{entry.name}</span>
@@ -431,7 +433,7 @@ export function FileExplorer({
         }
       } else {
         rows.push(
-          <div key={entry.path} className={selected ? `${css.row} ${css.rowSelected}` : css.row} style={{ paddingLeft: indent }} title={entry.path} aria-current={selected ? 'location' : undefined} onClick={() => { actions.setOpenFile(entry) }}>
+          <div key={entry.path} className={`${css.row}${highlightCls}`} style={{ paddingLeft: indent }} title={entry.path} aria-current={selected ? 'location' : undefined} onClick={() => { actions.setOpenFile(entry) }}>
             <span className={css.twistSpacer} />
             <span className={css.icon}><FileTypeIcon name={entry.name} /></span>
             <span className={css.name}>{entry.name}</span>

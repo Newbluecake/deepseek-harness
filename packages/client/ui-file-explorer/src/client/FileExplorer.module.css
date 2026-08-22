@@ -192,6 +192,17 @@
   color: var(--dsw-alias-brand-primary);
 }
 
+/* Stronger highlight for a located file: brand-tinted fill plus a left accent bar. */
+.rowLocated {
+  background: var(--dsw-specific-bubble-highlight);
+  box-shadow: inset 3px 0 0 var(--dsw-static-deepseek-500);
+}
+
+.rowLocated .name {
+  color: var(--dsw-alias-brand-primary);
+  font-weight: 600;
+}
+
 .rowDir .name {
   font-weight: 500;
 }
