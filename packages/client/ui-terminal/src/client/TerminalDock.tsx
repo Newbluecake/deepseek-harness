@@ -94,12 +94,25 @@ export function TerminalDock({
   }, [])
   useEffect(() => onTerminalExit(() => { void refresh() }), [onTerminalExit, refresh])
 
-  // Global keyboard shortcuts for the topmost open terminal window:
-  // Cmd/Ctrl+Shift+M minimizes it, Cmd/Ctrl+Shift+F toggles maximize. Capture
-  // phase so the shortcut wins over the focused terminal's own keystrokes.
+  // Global keyboard shortcuts: Cmd/Ctrl+Shift+M minimizes the topmost open
+  // window, Cmd/Ctrl+Shift+F toggles its maximize, Cmd/Ctrl+Shift+[ collapses
+  // all, Cmd/Ctrl+Shift+] expands all. Capture phase so the shortcut wins over
+  // the focused terminal's own keystrokes.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
       if (!(event.metaKey || event.ctrlKey) || !event.shiftKey) return
+      if (event.code === 'BracketLeft') {
+        event.preventDefault()
+        event.stopPropagation()
+        actions.collapseAllWindows()
+        return
+      }
+      if (event.code === 'BracketRight') {
+        event.preventDefault()
+        event.stopPropagation()
+        actions.expandAllWindows()
+        return
+      }
       const open = Object.values(windowsRef.current).filter(window => !window.minimized)
       if (open.length === 0) return
       const top = open.reduce((a, b) => (a.z > b.z ? a : b))
