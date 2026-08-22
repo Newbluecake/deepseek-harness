@@ -12,6 +12,8 @@ interface GitChangesViewerProps {
   sessionId: FileExplorerProps['sessionId']
   gitStatus: FileExplorerProps['gitStatus']
   openFileDiff: (path: string, scope: 'staged' | 'unstaged') => void
+  /** Jump to the file list and search for the given change path's basename. */
+  locateFile: (path: string) => void
 }
 
 interface ListData {
@@ -51,9 +53,10 @@ function codeClass(code: string): string {
  * @param props - session data access and the file selection callback.
  * @returns the changes list.
  */
-export function GitChangesViewer({ sessionId, gitStatus, openFileDiff }: GitChangesViewerProps) {
+export function GitChangesViewer({ sessionId, gitStatus, openFileDiff, locateFile }: GitChangesViewerProps) {
   const [data, setData] = useState<ListData>({ loading: true, branch: '', staged: [], unstaged: [], error: null })
   const [query, setQuery] = useState('')
+  const [menu, setMenu] = useState<{ x: number; y: number; path: string } | null>(null)
 
   const refresh = useCallback((): void => {
     void gitStatus(sessionId).then((result) => {
@@ -81,7 +84,14 @@ export function GitChangesViewer({ sessionId, gitStatus, openFileDiff }: GitChan
   }, [sessionId, refresh])
 
   const renderRow = (change: GitChange, scope: 'staged' | 'unstaged'): JSX.Element => (
-    <button type="button" key={`${scope}:${change.path}`} className={css.chRow} title={change.path} onClick={() => { openFileDiff(change.path, scope) }}>
+    <button
+      type="button"
+      key={`${scope}:${change.path}`}
+      className={css.chRow}
+      title={change.path}
+      onClick={() => { openFileDiff(change.path, scope) }}
+      onContextMenu={(event) => { event.preventDefault(); setMenu({ x: event.clientX, y: event.clientY, path: change.path }) }}
+    >
       <span className={`${css.chCode} ${codeClass(change.code)}`}>{change.code}</span>
       <span className={css.chPath}>{change.path}</span>
     </button>
@@ -110,14 +120,28 @@ export function GitChangesViewer({ sessionId, gitStatus, openFileDiff }: GitChan
   }
 
   return (
-    <div className={css.panel}>
-      <div className={explorerCss.search}>
-        <span className={explorerCss.searchIcon}><SearchIcon /></span>
-        <input className={explorerCss.searchInput} type="text" placeholder="搜索变更文件…" value={query} onChange={(event) => { setQuery(event.target.value) }} />
-        {query !== '' && <button type="button" className={explorerCss.searchClear} title="清除" onClick={() => { setQuery('') }}><ClearIcon /></button>}
+    <>
+      <div className={css.panel}>
+        <div className={explorerCss.search}>
+          <span className={explorerCss.searchIcon}><SearchIcon /></span>
+          <input className={explorerCss.searchInput} type="text" placeholder="搜索变更文件…" value={query} onChange={(event) => { setQuery(event.target.value) }} />
+          {query !== '' && <button type="button" className={explorerCss.searchClear} title="清除" onClick={() => { setQuery('') }}><ClearIcon /></button>}
+        </div>
+        {!data.loading && data.error === null && <div className={explorerCss.rootPath}>{data.branch === '' ? '分离 HEAD' : data.branch}</div>}
+        <div className={css.panelBody}>{body}</div>
       </div>
-      {!data.loading && data.error === null && <div className={explorerCss.rootPath}>{data.branch === '' ? '分离 HEAD' : data.branch}</div>}
-      <div className={css.panelBody}>{body}</div>
-    </div>
+      {menu !== null && (
+        <>
+          <div
+            className={css.ctxBackdrop}
+            onClick={() => { setMenu(null) }}
+            onContextMenu={(event) => { event.preventDefault(); setMenu(null) }}
+          />
+          <div className={css.ctxMenu} style={{ left: menu.x, top: menu.y }} role="menu" aria-label="文件操作">
+            <button type="button" role="menuitem" className={css.ctxItem} onClick={() => { locateFile(menu.path); setMenu(null) }}>在文件列表中定位</button>
+          </div>
+        </>
+      )}
+    </>
   )
 }

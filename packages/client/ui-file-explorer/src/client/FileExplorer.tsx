@@ -31,6 +31,12 @@ function humanSize(bytes: number): string {
   return `${(bytes / 1048576).toFixed(1)} MB`
 }
 
+/** Last path segment, for a git change path resolved to a file-list search term. */
+function basename(path: string): string {
+  const idx = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'))
+  return idx < 0 ? path : path.slice(idx + 1)
+}
+
 const svgProps = {
   viewBox: '0 0 24 24', width: 14, height: 14, fill: 'none', stroke: 'currentColor',
   strokeWidth: 2, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const,
@@ -310,6 +316,29 @@ export function FileExplorer({
     })
   }
 
+  // Expand each ancestor directory of a repository-relative path so a later
+  // search filter can reach the file's entry in the lazy tree.
+  const expandAncestors = async (dirSegments: string[]): Promise<void> => {
+    let rel = ''
+    for (const segment of dirSegments) {
+      rel = rel === '' ? segment : `${rel}/${segment}`
+      const result = await listDir(sessionId, rel)
+      if (!result.ok) return
+      const nodePath = result.value.path
+      const node: TreeNode = { entries: result.value.entries, expanded: true, loaded: true, loading: false, error: null }
+      setTree(prev => ({ ...prev, [nodePath]: node }))
+    }
+  }
+
+  // Jump from a git change to the file list: switch panels, filter by the
+  // file's basename, and expand its ancestor directories so it is visible.
+  const locateFile = (path: string): void => {
+    setQuery(basename(path))
+    actions.setPanel('files')
+    const segments = path.split(/[/\\]/).filter(segment => segment !== '')
+    void expandAncestors(segments.slice(0, -1))
+  }
+
   const q = query.trim().toLowerCase()
   const rows: JSX.Element[] = []
 
@@ -397,7 +426,7 @@ export function FileExplorer({
           <div className={css.list}>{rows}</div>
         </>
       )}
-      {panel === 'diff' && <GitChangesViewer sessionId={sessionId} gitStatus={gitStatus} openFileDiff={(path, scope) => { actions.setOpenFileDiff({ path, scope }) }} />}
+      {panel === 'diff' && <GitChangesViewer sessionId={sessionId} gitStatus={gitStatus} openFileDiff={(path, scope) => { actions.setOpenFileDiff({ path, scope }) }} locateFile={locateFile} />}
       {panel === 'tree' && <GitBranchViewer sessionId={sessionId} gitLog={gitLog} expand={() => { actions.setGitTreeOpen(true) }} />}
       {renderSlot('file-explorer.overlay', {})}
     </div>

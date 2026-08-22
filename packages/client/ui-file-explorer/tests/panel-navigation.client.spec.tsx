@@ -72,7 +72,7 @@ function mountExplorer() {
       <GitTreeModal {...common as GitModalProps} />
     </>,
   )
-  return { fileDiff, gitLog }
+  return { fileDiff, gitLog, listDir }
 }
 
 describe('file explorer git navigation', () => {
@@ -126,6 +126,19 @@ describe('file explorer git navigation', () => {
     expect(screen.getByText('Git Diff', { selector: 'span' })).toBeTruthy()
     expect([...toolbar.querySelectorAll('button[title]')]).toEqual(toolbarButtons)
     expect(toolbarTitles()[0]).toBe('收起Git Diff')
+  })
+
+  it('locates a changed file in the file list from its row context menu', async () => {
+    const { listDir } = mountExplorer()
+
+    const changedFile = await screen.findByRole('button', { name: /src\/main\.ts/u })
+    fireEvent.contextMenu(changedFile)
+    const locate = await screen.findByRole('menuitem', { name: '在文件列表中定位' })
+    fireEvent.click(locate)
+
+    expect(screen.getByText('文件目录')).toBeTruthy()
+    expect(screen.getByPlaceholderText('搜索文件名…').value).toBe('main.ts')
+    await waitFor(() => { expect(listDir).toHaveBeenCalledWith(expect.any(String), 'src') })
   })
 
   it('shows current-branch commits in details before expanding the complete Git Tree', async () => {
