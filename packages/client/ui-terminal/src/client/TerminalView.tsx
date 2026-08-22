@@ -51,7 +51,7 @@ export function TerminalView({
       fontSize: 14,
       fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
       scrollback: 2000,
-      theme: { background: '#00000000' },
+      theme: { background: '#000000' },
     })
     const fit = new FitAddon()
     term.loadAddon(fit)
@@ -77,7 +77,8 @@ export function TerminalView({
         const rows = container.querySelector('.xterm-rows')
         const body = container.parentElement
         if (rows === null || body === null) return
-        const delta = rows.getBoundingClientRect().height + 6 - body.getBoundingClientRect().height
+        // 6px top + 6px bottom gutter (matches the .term inset).
+        const delta = rows.getBoundingClientRect().height + 12 - body.getBoundingClientRect().height
         onFitDelta(delta)
       }, 200)
     }

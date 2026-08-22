@@ -350,12 +350,12 @@
 /* --- xterm emulator area (shared with TerminalView) --- */
 
 .term {
-  /* Inset (not padding) so the FitAddon still measures the exact renderable
-     area. The bottom stays flush because the xterm viewport already leaves its
-     own line-height remainder there; left/right/top get the gutter so text
-     does not touch the window border. */
+  /* The terminal's own black background fills the body; internal padding is on
+     the .xterm element (FitAddon subtracts it), so text keeps a gutter from the
+     black edge. */
   position: absolute;
-  inset: 3px 3px 0 3px;
+  inset: 0;
+  background: #000;
 }
 
 .termHidden {
