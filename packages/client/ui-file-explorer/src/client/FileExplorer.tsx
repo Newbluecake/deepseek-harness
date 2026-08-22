@@ -31,12 +31,6 @@ function humanSize(bytes: number): string {
   return `${(bytes / 1048576).toFixed(1)} MB`
 }
 
-/** Last path segment, for a git change path resolved to a file-list search term. */
-function basename(path: string): string {
-  const idx = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'))
-  return idx < 0 ? path : path.slice(idx + 1)
-}
-
 const svgProps = {
   viewBox: '0 0 24 24', width: 14, height: 14, fill: 'none', stroke: 'currentColor',
   strokeWidth: 2, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const,
@@ -260,6 +254,7 @@ export function FileExplorer({
   const [rootState, setRootState] = useState<RootState>({ loading: true, path: null, error: null })
   const [tree, setTree] = useState<Record<string, TreeNode>>({})
   const [query, setQuery] = useState('')
+  const [locatePath, setLocatePath] = useState<string | null>(null)
 
   const loadRoot = (): void => {
     setRootState({ loading: true, path: null, error: null })
@@ -316,27 +311,35 @@ export function FileExplorer({
     })
   }
 
-  // Expand each ancestor directory of a repository-relative path so a later
-  // search filter can reach the file's entry in the lazy tree.
-  const expandAncestors = async (dirSegments: string[]): Promise<void> => {
-    let rel = ''
+  // Expand each ancestor directory of a repository-relative path and highlight
+  // the target file, so the tree shows the file's full directory relationship.
+  const expandAndSelect = async (segments: string[]): Promise<void> => {
+    const targetName = segments[segments.length - 1]
+    if (targetName === undefined) return
+    const dirSegments = segments.slice(0, -1)
+    let rel: string | null = null
     for (const segment of dirSegments) {
-      rel = rel === '' ? segment : `${rel}/${segment}`
+      rel = rel === null ? segment : `${rel}/${segment}`
       const result = await listDir(sessionId, rel)
       if (!result.ok) return
-      const nodePath = result.value.path
       const node: TreeNode = { entries: result.value.entries, expanded: true, loaded: true, loading: false, error: null }
-      setTree(prev => ({ ...prev, [nodePath]: node }))
+      setTree(prev => ({ ...prev, [result.value.path]: node }))
+    }
+    const containing = await listDir(sessionId, rel)
+    if (containing.ok) {
+      const target = containing.value.entries.find(entry => entry.name === targetName)
+      if (target !== undefined) setLocatePath(target.path)
     }
   }
 
-  // Jump from a git change to the file list: switch panels, filter by the
-  // file's basename, and expand its ancestor directories so it is visible.
+  // Jump from a git change to the file list: switch panels, clear any filter,
+  // and expand the file's ancestor directories while highlighting the file.
   const locateFile = (path: string): void => {
-    setQuery(basename(path))
     actions.setPanel('files')
+    setQuery('')
+    setLocatePath(null)
     const segments = path.split(/[/\\]/).filter(segment => segment !== '')
-    void expandAncestors(segments.slice(0, -1))
+    void expandAndSelect(segments)
   }
 
   const q = query.trim().toLowerCase()
@@ -354,10 +357,10 @@ export function FileExplorer({
         continue
       }
       const indent = `${depth * 14 + 6}px`
-      const selected = openFile?.path === entry.path
+      const selected = openFile !== null ? openFile.path === entry.path : locatePath === entry.path
       if (entry.type === 'directory') {
         rows.push(
-          <div key={entry.path} className={selected ? `${css.row} ${css.rowDir} ${css.rowSelected}` : `${css.row} ${css.rowDir}`} style={{ paddingLeft: indent }} title={entry.path} onClick={() => { toggleDir(entry.path) }}>
+          <div key={entry.path} className={selected ? `${css.row} ${css.rowDir} ${css.rowSelected}` : `${css.row} ${css.rowDir}`} style={{ paddingLeft: indent }} title={entry.path} aria-current={selected ? 'location' : undefined} onClick={() => { toggleDir(entry.path) }}>
             <span className={css.twist}>{expanded ? '▾' : '▸'}</span>
             <span className={`${css.icon} ${css.iconDir}`}><FolderIcon /></span>
             <span className={css.name}>{entry.name}</span>
@@ -377,7 +380,7 @@ export function FileExplorer({
         }
       } else {
         rows.push(
-          <div key={entry.path} className={selected ? `${css.row} ${css.rowSelected}` : css.row} style={{ paddingLeft: indent }} title={entry.path} onClick={() => { actions.setOpenFile(entry) }}>
+          <div key={entry.path} className={selected ? `${css.row} ${css.rowSelected}` : css.row} style={{ paddingLeft: indent }} title={entry.path} aria-current={selected ? 'location' : undefined} onClick={() => { actions.setOpenFile(entry) }}>
             <span className={css.twistSpacer} />
             <span className={css.icon}><FileTypeIcon name={entry.name} /></span>
             <span className={css.name}>{entry.name}</span>

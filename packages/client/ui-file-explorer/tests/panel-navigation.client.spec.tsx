@@ -21,10 +21,18 @@ function hookOf<T>(instance: { subscribe: (listener: () => void) => () => void; 
 function mountExplorer() {
   const instance = createFileExplorerStore().create()
   const sessionId = 'session-test' as SessionId
-  const listDir: FileExplorerProps['listDir'] = vi.fn(async () => ({
-    ok: true as const,
-    value: { path: '/workspace', type: 'directory' as const, entries: [{ name: 'src', path: '/workspace/src', type: 'directory' as const, size: null }] },
-  }))
+  const listDir: FileExplorerProps['listDir'] = vi.fn(async (_sessionId: SessionId, path: string | null) => {
+    if (path === null) {
+      return {
+        ok: true as const,
+        value: { path: '/workspace', type: 'directory' as const, entries: [{ name: 'src', path: '/workspace/src', type: 'directory' as const, size: null }] },
+      }
+    }
+    return {
+      ok: true as const,
+      value: { path: '/workspace/src', type: 'directory' as const, entries: [{ name: 'main.ts', path: '/workspace/src/main.ts', type: 'file' as const, size: 42 }] },
+    }
+  })
   const gitStatus: FileExplorerProps['gitStatus'] = vi.fn(async () => ({
     ok: true as const,
     value: {
@@ -133,12 +141,16 @@ describe('file explorer git navigation', () => {
 
     const changedFile = await screen.findByRole('button', { name: /src\/main\.ts/u })
     fireEvent.contextMenu(changedFile)
-    const locate = await screen.findByRole('menuitem', { name: '在文件列表中定位' })
-    fireEvent.click(locate)
+    fireEvent.click(await screen.findByRole('menuitem', { name: '在文件列表中定位' }))
 
     expect(screen.getByText('文件目录')).toBeTruthy()
-    expect(screen.getByPlaceholderText('搜索文件名…').value).toBe('main.ts')
+    expect(screen.getByPlaceholderText<HTMLInputElement>('搜索文件名…').value).toBe('')
     await waitFor(() => { expect(listDir).toHaveBeenCalledWith(expect.any(String), 'src') })
+
+    const dir = await screen.findByTitle('/workspace/src')
+    const file = await screen.findByTitle('/workspace/src/main.ts')
+    expect(dir.compareDocumentPosition(file) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0)
+    expect(file.getAttribute('aria-current')).toBe('location')
   })
 
   it('shows current-branch commits in details before expanding the complete Git Tree', async () => {
