@@ -3,12 +3,17 @@
 .backdrop {
   position: fixed;
   inset: 0 72px 0 0;
-  background: rgba(0, 0, 0, 0.5);
+  /* No dim and click-through: the card's own shadow separates it, and clicks
+     outside the card fall through to a terminal window or the workspace so the
+     modal switches layers on focus instead of closing. */
+  background: transparent;
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 800;
-  pointer-events: auto;
+  /* Base z-index; the component overrides it inline to switch with the
+     terminal (1200 focused, 800 unfocused). */
+  z-index: 1200;
+  pointer-events: none;
   padding: 24px;
 }
 
@@ -20,6 +25,7 @@
   max-width: 100%;
   height: min(80vh, 700px);
   display: flex;
+  pointer-events: auto;
   flex-direction: column;
   overflow: hidden;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);

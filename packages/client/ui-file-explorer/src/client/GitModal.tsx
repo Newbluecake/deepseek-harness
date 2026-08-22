@@ -4,6 +4,7 @@
  */
 import type { GitModalProps } from './contract/slots.ts'
 import { DiffViewer } from './DiffViewer.tsx'
+import { useModalFocus } from './useModalFocus.ts'
 import css from './GitModal.module.css'
 
 const svgProps = {
@@ -36,13 +37,14 @@ function CloseIcon(): JSX.Element {
  */
 export function GitModal({ sessionId, useStore, actions, fileDiff }: GitModalProps) {
   const file = useStore(state => state.openFileDiff)
+  const { ref, zIndex } = useModalFocus(file?.path)
   if (file === null) return null
 
   const close = (): void => { actions.setOpenFileDiff(null) }
 
   return (
-    <div className={css.backdrop} onClick={close}>
-      <div className={css.card} onClick={(event) => { event.stopPropagation() }}>
+    <div className={css.backdrop} style={{ zIndex }}>
+      <div ref={ref} className={css.card}>
         <div className={css.head}>
           <span className={css.title}><FileIcon /> {file.path}</span>
           <button type="button" className={css.close} title="关闭" onClick={close}><CloseIcon /></button>

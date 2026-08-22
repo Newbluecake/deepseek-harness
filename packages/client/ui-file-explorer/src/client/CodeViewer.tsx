@@ -6,6 +6,7 @@
 import { useEffect, useState } from 'react'
 import type { CodeViewerProps } from './contract/slots.ts'
 import { tokenize, usesHashComments, type HighlightToken } from './highlight.ts'
+import { useModalFocus } from './useModalFocus.ts'
 import css from './CodeViewer.module.css'
 
 const svgProps = {
@@ -52,6 +53,7 @@ function tokenClass(type: HighlightToken['type']): string | undefined {
  */
 export function CodeViewer({ sessionId, useStore, actions, readFile }: CodeViewerProps) {
   const file = useStore(state => state.openFile)
+  const { ref, zIndex } = useModalFocus(file?.path)
   const [content, setContent] = useState({ loading: false, text: '', truncated: false, error: null as string | null })
 
   useEffect(() => {
@@ -84,8 +86,8 @@ export function CodeViewer({ sessionId, useStore, actions, readFile }: CodeViewe
   }
 
   return (
-    <div className={css.backdrop} onClick={() => { actions.setOpenFile(null) }}>
-      <div className={css.card} onClick={(event) => { event.stopPropagation() }}>
+    <div className={css.backdrop} style={{ zIndex }}>
+      <div ref={ref} className={css.card}>
         <div className={css.head}>
           <span className={css.title}><FileIcon /> {file.name}</span>
           <button type="button" className={css.close} title="关闭" onClick={() => { actions.setOpenFile(null) }}><CloseIcon /></button>

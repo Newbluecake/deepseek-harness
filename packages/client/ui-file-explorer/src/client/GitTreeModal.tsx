@@ -1,6 +1,7 @@
 /** Git Tree modal hosting the commit graph outside the details column. */
 import type { GitModalProps } from './contract/slots.ts'
 import { GitTreeViewer } from './GitTreeViewer.tsx'
+import { useModalFocus } from './useModalFocus.ts'
 import css from './GitModal.module.css'
 
 const svgProps = {
@@ -34,12 +35,13 @@ function CloseIcon(): JSX.Element {
  */
 export function GitTreeModal({ sessionId, useStore, actions, gitLog }: GitModalProps) {
   const open = useStore(state => state.gitTreeOpen)
+  const { ref, zIndex } = useModalFocus(open)
   if (!open) return null
   const close = (): void => { actions.setGitTreeOpen(false) }
 
   return (
-    <div className={css.backdrop} onClick={close}>
-      <div className={css.card} onClick={(event) => { event.stopPropagation() }}>
+    <div className={css.backdrop} style={{ zIndex }}>
+      <div ref={ref} className={css.card}>
         <div className={css.head}>
           <span className={css.title}><GitCommitIcon /> Git Tree</span>
           <button type="button" className={css.close} title="关闭 Git Tree" onClick={close}><CloseIcon /></button>
