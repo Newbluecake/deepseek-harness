@@ -1,9 +1,11 @@
 /**
  * One draggable floating terminal window: a title bar (name, running dot,
- * minimize / maximize / close) plus the bound xterm.js emulator. Dragging
- * moves the window, the bottom-right corner resizes it, and both clamp so the
- * window stays reachable inside the viewport. A minimized window stays mounted
- * (visibility-hidden) so the emulator keeps its dimensions and state.
+ * minimize / maximize / close) plus the bound xterm.js emulator. Dragging the
+ * title bar moves the window, and any of the four edges or four corners
+ * resizes it — a north/west drag pins the opposite edge by moving the origin
+ * as the size changes. Both clamp so the window stays reachable inside the
+ * viewport. A minimized window stays mounted (visibility-hidden) so the
+ * emulator keeps its dimensions and state.
  */
 import { useRef, type PointerEvent as ReactPointerEvent } from 'react'
 import clsx from 'clsx'
@@ -59,6 +61,39 @@ const MIN_WIDTH = 320
 const MIN_HEIGHT = 180
 const EDGE = 80
 
+/**
+ * One resize direction, named by the edges it drags: `n`/`s`/`e`/`w` for the
+ * four edges and the two-letter pairs for the four corners.
+ */
+type ResizeDir = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw'
+
+/**
+ * The eight resize handles. Corners follow the edges so that, as later
+ * siblings in the same stacking context, they win the overlapping hit area.
+ */
+const RESIZE_HANDLES: readonly { dir: ResizeDir; className: string | undefined }[] = [
+  { dir: 'n', className: css.resizeN },
+  { dir: 's', className: css.resizeS },
+  { dir: 'w', className: css.resizeW },
+  { dir: 'e', className: css.resizeE },
+  { dir: 'nw', className: css.resizeNW },
+  { dir: 'ne', className: css.resizeNE },
+  { dir: 'sw', className: css.resizeSW },
+  { dir: 'se', className: css.resizeSE },
+]
+
+/**
+ * Clamp one window dimension into its allowed span.
+ * @param value - the candidate size in px.
+ * @param min - the floor the window may never shrink past.
+ * @param max - the ceiling; a max below `min` yields `min`, so a window pinned
+ * against the viewport edge shrinks to its floor instead of inverting.
+ * @returns the clamped size in px.
+ */
+function clampSize(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value))
+}
+
 /** One floating terminal window's props: its state, the host info, and the injected actions. */
 export interface TerminalWindowProps {
   win: TerminalWindowState
@@ -85,7 +120,9 @@ export function TerminalWindow({
   onClose, onMinimize, onToggleMaximize, onFocus, onMove, onResize,
 }: TerminalWindowProps) {
   const drag = useRef<{ pointerId: number; startX: number; startY: number; left: number; top: number } | null>(null)
-  const resize = useRef<{ pointerId: number; startX: number; startY: number; width: number; height: number } | null>(null)
+  const resize = useRef<
+    { pointerId: number; dir: ResizeDir; startX: number; startY: number; x: number; y: number; width: number; height: number } | null
+  >(null)
   const winRef = useRef(win)
   winRef.current = win
 
@@ -114,18 +151,39 @@ export function TerminalWindow({
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
   }
 
-  const onResizePointerDown = (event: ReactPointerEvent<HTMLDivElement>): void => {
+  const onResizePointerDown = (dir: ResizeDir) => (event: ReactPointerEvent<HTMLDivElement>): void => {
     if (event.button !== 0 || win.maximized) return
+    // The window's own `onPointerDown` raises the window, so the handle only
+    // has to record the drag origin. Both the size and the origin are captured:
+    // a north/west drag derives the new x/y from them to pin the far edge.
     event.preventDefault()
-    resize.current = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, width: win.width, height: win.height }
+    resize.current = {
+      pointerId: event.pointerId, dir,
+      startX: event.clientX, startY: event.clientY,
+      x: win.x, y: win.y, width: win.width, height: win.height,
+    }
     event.currentTarget.setPointerCapture(event.pointerId)
   }
   const onResizePointerMove = (event: ReactPointerEvent<HTMLDivElement>): void => {
     const origin = resize.current
     if (origin === null || origin.pointerId !== event.pointerId) return
-    const width = Math.max(MIN_WIDTH, Math.min(window.innerWidth, origin.width + (event.clientX - origin.startX)))
-    const height = Math.max(MIN_HEIGHT, Math.min(window.innerHeight, origin.height + (event.clientY - origin.startY)))
-    onResize(win.terminalId, width, height)
+    const dx = event.clientX - origin.startX
+    const dy = event.clientY - origin.startY
+    let { x, y, width, height } = origin
+    if (origin.dir.includes('e')) width = clampSize(origin.width + dx, MIN_WIDTH, window.innerWidth)
+    if (origin.dir.includes('s')) height = clampSize(origin.height + dy, MIN_HEIGHT, window.innerHeight)
+    // Growing west/north moves the origin by exactly what the size gained, so
+    // the east/south edge stays put; the ceiling stops the origin at 0.
+    if (origin.dir.includes('w')) {
+      width = clampSize(origin.width - dx, MIN_WIDTH, origin.width + origin.x)
+      x = origin.x + origin.width - width
+    }
+    if (origin.dir.includes('n')) {
+      height = clampSize(origin.height - dy, MIN_HEIGHT, origin.height + origin.y)
+      y = origin.y + origin.height - height
+    }
+    if (x !== win.x || y !== win.y) onMove(win.terminalId, x, y)
+    if (width !== win.width || height !== win.height) onResize(win.terminalId, width, height)
   }
   const onResizePointerUp = (event: ReactPointerEvent<HTMLDivElement>): void => {
     if (resize.current?.pointerId !== event.pointerId) return
@@ -165,20 +223,29 @@ export function TerminalWindow({
           onTerminalOutput={onTerminalOutput}
           onFitDelta={(delta) => {
             if (Math.abs(delta) < 1) return
+            // A live edge drag owns the geometry: snapping the height here
+            // would drift the very edge a north drag is holding in place.
+            if (resize.current !== null) return
             const current = winRef.current
             if (current.maximized) return
             onResize(current.terminalId, current.width, current.height + delta)
           }}
         />
       </div>
-      {!win.maximized && (
+      {/* Pointer-only affordances: keyboard users resize through maximize, so
+          these stay out of the accessibility tree rather than posing as eight
+          operable controls. */}
+      {!win.maximized && RESIZE_HANDLES.map(({ dir, className }) => (
         <div
-          className={css.windowResize}
-          onPointerDown={onResizePointerDown}
+          key={dir}
+          className={clsx(css.resizeHandle, className)}
+          data-resize={dir}
+          aria-hidden="true"
+          onPointerDown={onResizePointerDown(dir)}
           onPointerMove={onResizePointerMove}
           onPointerUp={onResizePointerUp}
         />
-      )}
+      ))}
     </section>
   )
 }

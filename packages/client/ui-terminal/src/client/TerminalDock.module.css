@@ -337,14 +337,81 @@
   overflow: hidden;
 }
 
-.windowResize {
+/* --- Resize handles ---
+   Four edges plus four corners, all inset rather than straddling the frame:
+   `.window` clips with overflow: hidden, so a handle hanging outside would be
+   invisible to the pointer. Corners come last in DOM order, which makes them
+   win the hit area they share with the two edges they join. The north band and
+   the top corners stay clear of the title bar's traffic lights (which start
+   10px in and 6px down), so a click still reaches close/minimize/maximize. */
+
+.resizeHandle {
   position: absolute;
+  touch-action: none;
+}
+
+.resizeN {
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 5px;
+  cursor: ns-resize;
+}
+
+.resizeS {
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 5px;
+  cursor: ns-resize;
+}
+
+.resizeW {
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 5px;
+  cursor: ew-resize;
+}
+
+.resizeE {
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 5px;
+  cursor: ew-resize;
+}
+
+.resizeNW {
+  top: 0;
+  left: 0;
+  width: 10px;
+  height: 10px;
+  cursor: nwse-resize;
+}
+
+.resizeNE {
+  top: 0;
+  right: 0;
+  width: 10px;
+  height: 10px;
+  cursor: nesw-resize;
+}
+
+.resizeSW {
+  bottom: 0;
+  left: 0;
+  width: 14px;
+  height: 14px;
+  cursor: nesw-resize;
+}
+
+.resizeSE {
   right: 0;
   bottom: 0;
   width: 16px;
   height: 16px;
   cursor: nwse-resize;
-  touch-action: none;
 }
 
 /* --- xterm emulator area (shared with TerminalView) --- */
