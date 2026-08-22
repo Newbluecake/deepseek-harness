@@ -6,6 +6,12 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import type { FileExplorerEntry, SearchFileMatch } from '@deepseek-ai/dsh-file-explorer/types'
+import type { IconType } from 'react-icons'
+import {
+  SiC, SiCplusplus, SiCss, SiDocker, SiGnubash, SiGo, SiHtml5, SiJavascript, SiJson, SiKotlin,
+  SiMarkdown, SiOpenjdk, SiPhp, SiPostgresql, SiPython, SiRuby, SiRust, SiSharp, SiSwift, SiToml,
+  SiTypescript, SiYaml,
+} from 'react-icons/si'
 import type { FileExplorerProps } from './contract/slots.ts'
 import { GitBranchViewer } from './GitBranchViewer.tsx'
 import { GitChangesViewer } from './GitChangesViewer.tsx'
@@ -131,6 +137,32 @@ const FILE_KIND_CLASS: Record<string, string | undefined> = {
   docker: css.fileDocker,
 }
 
+/** Standard logo + brand color per kind id (Simple Icons). */
+const FILE_TYPE_ICON: Record<string, { Icon: IconType; color: string }> = {
+  js: { Icon: SiJavascript, color: '#F7DF1E' },
+  ts: { Icon: SiTypescript, color: '#3178C6' },
+  java: { Icon: SiOpenjdk, color: '#437291' },
+  py: { Icon: SiPython, color: '#3776AB' },
+  rb: { Icon: SiRuby, color: '#CC342D' },
+  php: { Icon: SiPhp, color: '#777BB4' },
+  go: { Icon: SiGo, color: '#00ADD8' },
+  rs: { Icon: SiRust, color: '#DEA584' },
+  c: { Icon: SiC, color: '#A8B9CC' },
+  cpp: { Icon: SiCplusplus, color: '#00599C' },
+  cs: { Icon: SiSharp, color: '#512BD4' },
+  swift: { Icon: SiSwift, color: '#F05138' },
+  kt: { Icon: SiKotlin, color: '#7F52FF' },
+  html: { Icon: SiHtml5, color: '#E34F26' },
+  css: { Icon: SiCss, color: '#1572B6' },
+  json: { Icon: SiJson, color: '#437291' },
+  md: { Icon: SiMarkdown, color: '#437291' },
+  yaml: { Icon: SiYaml, color: '#CB171E' },
+  sh: { Icon: SiGnubash, color: '#4EAA25' },
+  sql: { Icon: SiPostgresql, color: '#4169E1' },
+  toml: { Icon: SiToml, color: '#9C4121' },
+  docker: { Icon: SiDocker, color: '#2496ED' },
+}
+
 /**
  * Resolve one file name to its language badge, or `undefined` for unknown types.
  * @param name - file name (or path; only the basename matters).
@@ -145,10 +177,12 @@ function fileKind(name: string): FileKind | undefined {
   return EXTENSION_KINDS[base.slice(dot + 1)]
 }
 
-/** File glyph whose lower body carries the language abbreviation in its kind color. */
+/** File glyph: the standard language logo when known, else a badge with its abbreviation. */
 function FileTypeIcon({ name }: { name: string }): JSX.Element {
   const kind = fileKind(name)
   if (kind === undefined) return <FileIcon />
+  const icon = FILE_TYPE_ICON[kind.id]
+  if (icon !== undefined) return <icon.Icon size={16} color={icon.color} />
   return (
     <svg {...svgProps}>
       <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" />
