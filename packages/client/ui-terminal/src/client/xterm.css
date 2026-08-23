@@ -102,10 +102,43 @@
     top: 0;
     bottom: 0;
     scrollbar-width: none;
+    scrollbar-color: transparent transparent;
+}
+
+.xterm .xterm-viewport:hover,
+.xterm .xterm-viewport.dsh-scroll-active {
+    scrollbar-width: thin;
+    scrollbar-color: var(--dsw-alias-scrollbar-bg-l2) transparent;
 }
 
 .xterm .xterm-viewport::-webkit-scrollbar {
-    display: none;
+    width: 0;
+    height: 0;
+}
+
+.xterm .xterm-viewport:hover::-webkit-scrollbar,
+.xterm .xterm-viewport.dsh-scroll-active::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.xterm .xterm-viewport::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.xterm .xterm-viewport::-webkit-scrollbar-thumb {
+    border-radius: 4px;
+    background: transparent;
+}
+
+.xterm .xterm-viewport:hover::-webkit-scrollbar-thumb,
+.xterm .xterm-viewport.dsh-scroll-active::-webkit-scrollbar-thumb {
+    background: var(--dsw-alias-scrollbar-bg-l2);
+}
+
+.xterm .xterm-viewport:hover::-webkit-scrollbar-thumb:hover,
+.xterm .xterm-viewport.dsh-scroll-active::-webkit-scrollbar-thumb:hover {
+    background: var(--dsw-alias-scrollbar-hover-l2);
 }
 
 .xterm .xterm-screen {

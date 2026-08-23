@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-08-23-terminal-window-resize-geometry.md
-2026-08-23-terminal-window-resize-geometry.md: 3e342ffbe5f71ade91fcbd473158c13de7fdb42a
-2026-08-23-terminal-window-resize-geometry.zh.md: b1d5874669f1559238f679d9080b658ed5488f7d
+2026-08-23-terminal-window-resize-geometry.md: c70c77db1657b5a15f5ba1989654a9777eeaeb5b
+2026-08-23-terminal-window-resize-geometry.zh.md: b7dfd4454e2edc63a8163d8bd3086fecd8615aac

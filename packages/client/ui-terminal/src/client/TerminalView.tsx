@@ -54,6 +54,18 @@ export function TerminalView({
     term.open(container)
     fit.fit()
 
+    const viewport = container.querySelector<HTMLElement>('.xterm-viewport')
+    let scrollIndicatorTimer: ReturnType<typeof setTimeout> | undefined
+    const showScrollIndicator = (): void => {
+      if (viewport === null) return
+      viewport.classList.add('dsh-scroll-active')
+      if (scrollIndicatorTimer !== undefined) clearTimeout(scrollIndicatorTimer)
+      scrollIndicatorTimer = setTimeout(() => {
+        viewport.classList.remove('dsh-scroll-active')
+      }, 800)
+    }
+    viewport?.addEventListener('scroll', showScrollIndicator, { passive: true })
+
     // Keep the PTY's dimensions in sync with the emulator so full-screen
     // programs (vim/top/htop) render at the right size.
     const syncSize = (): void => {
@@ -105,6 +117,8 @@ export function TerminalView({
 
     return () => {
       if (resizeTimer !== undefined) clearTimeout(resizeTimer)
+      if (scrollIndicatorTimer !== undefined) clearTimeout(scrollIndicatorTimer)
+      viewport?.removeEventListener('scroll', showScrollIndicator)
       observer.disconnect()
       offOutput()
       dataSub.dispose()
