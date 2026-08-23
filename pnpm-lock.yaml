@@ -1541,9 +1541,6 @@ importers:
       '@deepseek-ai/dsh-host-apiproxy':
         specifier: workspace:^
         version: link:../../host/apiproxy
-      '@deepseek-ai/dsh-host-web-auth':
-        specifier: workspace:^
-        version: link:../../host/web-auth
       '@deepseek-ai/dsh-host-webserver':
         specifier: workspace:^
         version: link:../../host/webserver
@@ -2084,10 +2081,6 @@ importers:
         version: 18.3.1(react@18.3.1)
 
   packages/client/ui-file-explorer:
-    dependencies:
-      clsx:
-        specifier: ^2.0.0
-        version: 2.1.1
     devDependencies:
       '@deepseek-ai/cordis':
         specifier: workspace:^
@@ -2113,9 +2106,6 @@ importers:
       '@deepseek-ai/dsh-client-ui-slots':
         specifier: workspace:^
         version: link:../ui-slots
-      '@deepseek-ai/dsh-client-ui-terminal':
-        specifier: workspace:^
-        version: link:../ui-terminal
       '@deepseek-ai/dsh-file-explorer':
         specifier: workspace:^
         version: link:../../fs/file-explorer
