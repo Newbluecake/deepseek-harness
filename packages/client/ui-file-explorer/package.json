@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-client-ui-file-explorer",
   "description": "File explorer web UI: workspace tree, text preview, and git diff in the session details column",
-  "version": "0.1.0-rc.8",
+  "version": "0.1.1-rc.2",
   "publishConfig": {
     "access": "public"
   },
@@ -44,9 +44,6 @@
     "watch": "tsdown --watch"
   },
   "license": "MIT",
-  "dependencies": {
-    "clsx": "^2.0.0"
-  },
   "peerDependencies": {
     "@deepseek-ai/cordis": "workspace:^",
     "@deepseek-ai/dsh-api-remotes": "workspace:^",

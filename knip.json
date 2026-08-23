@@ -107,6 +107,16 @@
         "tests/**/*.{ts,tsx}"
       ]
     },
+    "packages/fs/file-explorer": {
+      "project": [
+        "src/**/*.ts"
+      ]
+    },
+    "packages/terminal/terminal-web": {
+      "project": [
+        "src/**/*.ts"
+      ]
+    },
     "packages/api/remotes": {
       "entry": [
         "tests/**/*.e2e.ts"
@@ -117,6 +127,16 @@
       ],
       "ignoreDependencies": [
         "@deepseek-ai/dsh-api-gateway"
+      ]
+    },
+    "packages/client/ui-file-explorer": {
+      "entry": [
+        "tests/**/*.spec.tsx"
+      ],
+      "project": [
+        "src/**/*.ts",
+        "src/**/*.tsx",
+        "tests/**/*.tsx"
       ]
     },
     "packages/client/ui-primitives": {

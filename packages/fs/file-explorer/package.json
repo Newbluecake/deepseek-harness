@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-file-explorer",
   "description": "Browser-facing file-explorer data service: directory listing, text preview, and git change discovery/diff over the shared workspace",
-  "version": "0.1.0-rc.8",
+  "version": "0.1.1-rc.2",
   "publishConfig": {
     "access": "public"
   },
@@ -48,9 +48,6 @@
     "lib/typert.remote-client.d.ts"
   ],
   "license": "MIT",
-  "dependencies": {
-    "zod": "^4.4.3"
-  },
   "peerDependencies": {
     "@deepseek-ai/dsh-agent": "workspace:^",
     "@deepseek-ai/dsh-fs": "workspace:^",
