@@ -1,17 +1,18 @@
 /**
  * One draggable floating terminal window: a title bar (name, running dot,
  * minimize / maximize / close) plus the bound xterm.js emulator. Dragging the
- * title bar moves the window, and any of the four edges or four corners
- * resizes it — a north/west drag pins the opposite edge by moving the origin
- * as the size changes. Both clamp so the window stays reachable inside the
- * viewport. A minimized window stays mounted (visibility-hidden) so the
- * emulator keeps its dimensions and state.
+ * title bar moves the window, with a Windows-style half-screen preview when
+ * the pointer reaches the left or right viewport edge. Any of the four edges
+ * or four corners resizes the window — a north/west drag pins the opposite
+ * edge by moving the origin as the size changes. Both clamp so the window
+ * stays reachable inside the viewport. A minimized window stays mounted
+ * (visibility-hidden) so the emulator keeps its dimensions and state.
  */
-import { useRef, type PointerEvent as ReactPointerEvent } from 'react'
+import { useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
 import clsx from 'clsx'
 import type { TerminalWebSessionInfo } from '@deepseek-ai/dsh-terminal-web/types'
 import type { TerminalInjected } from './contract/slots.ts'
-import type { TerminalWindowState } from './store.ts'
+import type { TerminalSnapSide, TerminalWindowGeometry, TerminalWindowState } from './store.ts'
 import { TerminalView } from './TerminalView.tsx'
 import css from './TerminalDock.module.css'
 
@@ -61,6 +62,41 @@ const MIN_WIDTH = 320
 const MIN_HEIGHT = 180
 const EDGE = 80
 
+/** Pointer distance from a viewport side that arms the half-screen preview. */
+const SNAP_EDGE = 24
+/** Outer viewport margin and the gap between two snapped halves. */
+const SNAP_MARGIN = 8
+const SNAP_GAP = 8
+
+/** CSS geometry for one snapped half; calc() keeps it responsive to viewport resizes. */
+function snapStyle(side: TerminalSnapSide): CSSProperties {
+  const width = `calc((100vw - ${String(SNAP_MARGIN * 2 + SNAP_GAP)}px) / 2)`
+  return {
+    left: side === 'left' ? SNAP_MARGIN : `calc(50vw + ${String(SNAP_GAP / 2)}px)`,
+    top: SNAP_MARGIN,
+    width,
+    height: `calc(100vh - ${String(SNAP_MARGIN * 2)}px)`,
+  }
+}
+
+/** Numeric snap geometry persisted by the store as the window's current geometry. */
+function snapGeometry(side: TerminalSnapSide): TerminalWindowGeometry {
+  const width = (window.innerWidth - SNAP_MARGIN * 2 - SNAP_GAP) / 2
+  return {
+    x: side === 'left' ? SNAP_MARGIN : SNAP_MARGIN + width + SNAP_GAP,
+    y: SNAP_MARGIN,
+    width,
+    height: window.innerHeight - SNAP_MARGIN * 2,
+  }
+}
+
+/** Resolve the snap side under one pointer x coordinate. */
+function snapSideAt(clientX: number): TerminalSnapSide | null {
+  if (clientX <= SNAP_EDGE) return 'left'
+  if (clientX >= window.innerWidth - SNAP_EDGE) return 'right'
+  return null
+}
+
 /**
  * One resize direction, named by the edges it drags: `n`/`s`/`e`/`w` for the
  * four edges and the two-letter pairs for the four corners.
@@ -108,6 +144,9 @@ export interface TerminalWindowProps {
   onFocus: (terminalId: string) => void
   onMove: (terminalId: string, x: number, y: number) => void
   onResize: (terminalId: string, width: number, height: number) => void
+  onSnap: (terminalId: string, side: TerminalSnapSide, geometry: TerminalWindowGeometry) => void
+  onUnsnap: (terminalId: string, geometry?: TerminalWindowGeometry) => void
+  onClearSnap: (terminalId: string) => void
 }
 
 /**
@@ -118,12 +157,25 @@ export interface TerminalWindowProps {
 export function TerminalWindow({
   win, info, writeTerminal, readTerminal, resizeTerminal, onTerminalOutput,
   onClose, onMinimize, onToggleMaximize, onFocus, onMove, onResize,
+  onSnap, onUnsnap, onClearSnap,
 }: TerminalWindowProps) {
-  const drag = useRef<{ pointerId: number; startX: number; startY: number; left: number; top: number } | null>(null)
+  const drag = useRef<{
+    pointerId: number
+    startX: number
+    startY: number
+    left: number
+    top: number
+    snapped: TerminalSnapSide | null
+    restoreGeometry: TerminalWindowGeometry | null
+    preview: TerminalSnapSide | null
+    unsnapped: boolean
+  } | null>(null)
+  const [snapPreview, setSnapPreview] = useState<TerminalSnapSide | null>(null)
   const resize = useRef<
     { pointerId: number; dir: ResizeDir; startX: number; startY: number; x: number; y: number; width: number; height: number } | null
   >(null)
-  const clampX = (x: number): number => Math.min(window.innerWidth - EDGE, Math.max(EDGE - win.width, x))
+  const clampXForWidth = (x: number, width: number): number => Math.min(window.innerWidth - EDGE, Math.max(EDGE - width, x))
+  const clampX = (x: number): number => clampXForWidth(x, win.width)
   const clampY = (y: number): number => Math.min(window.innerHeight - EDGE, Math.max(0, y))
 
   const onTitlePointerDown = (event: ReactPointerEvent<HTMLDivElement>): void => {
@@ -134,17 +186,79 @@ export function TerminalWindow({
     if (event.target instanceof Element && event.target.closest('button') !== null) return
     event.preventDefault()
     onFocus(win.terminalId)
-    drag.current = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, left: win.x, top: win.y }
+    drag.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      left: win.x,
+      top: win.y,
+      snapped: win.snapped ?? null,
+      restoreGeometry: win.restoreGeometry ?? null,
+      preview: null,
+      unsnapped: false,
+    }
+    setSnapPreview(null)
     event.currentTarget.setPointerCapture(event.pointerId)
   }
   const onTitlePointerMove = (event: ReactPointerEvent<HTMLDivElement>): void => {
     const origin = drag.current
     if (origin === null || origin.pointerId !== event.pointerId) return
-    onMove(win.terminalId, clampX(origin.left + (event.clientX - origin.startX)), clampY(origin.top + (event.clientY - origin.startY)))
+    const edge = snapSideAt(event.clientX)
+
+    if (origin.snapped !== null && !origin.unsnapped) {
+      // Moving within the armed edge keeps the current half; crossing away
+      // restores the remembered geometry before normal dragging resumes.
+      if (edge === origin.snapped) {
+        origin.preview = edge
+        setSnapPreview(edge)
+        return
+      }
+      const restore = origin.restoreGeometry ?? { x: win.x, y: win.y, width: win.width, height: win.height }
+      // Keep the pointer at the same relative position on the restored title
+      // bar. Restoring the old x/y here makes the window jump away from the
+      // mouse; Windows instead restores the size and continues the drag.
+      const pointerRatioX = Math.min(1, Math.max(0, (origin.startX - origin.left) / win.width))
+      const pointerOffsetY = origin.startY - origin.top
+      const next = {
+        x: clampXForWidth(event.clientX - pointerRatioX * restore.width, restore.width),
+        y: clampY(event.clientY - pointerOffsetY),
+        width: restore.width,
+        height: restore.height,
+      }
+      origin.unsnapped = true
+      origin.snapped = null
+      origin.restoreGeometry = null
+      origin.left = next.x
+      origin.top = next.y
+      origin.startX = event.clientX
+      origin.startY = event.clientY
+      origin.preview = edge
+      setSnapPreview(edge)
+      onUnsnap(win.terminalId, next)
+      return
+    }
+
+    origin.preview = edge
+    setSnapPreview(edge)
+    onMove(
+      win.terminalId,
+      clampX(origin.left + (event.clientX - origin.startX)),
+      clampY(origin.top + (event.clientY - origin.startY)),
+    )
   }
   const onTitlePointerUp = (event: ReactPointerEvent<HTMLDivElement>): void => {
+    const origin = drag.current
+    if (origin === null || origin.pointerId !== event.pointerId) return
+    const preview = origin.preview
+    drag.current = null
+    setSnapPreview(null)
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
+    if (preview !== null) onSnap(win.terminalId, preview, snapGeometry(preview))
+  }
+  const onTitlePointerCancel = (event: ReactPointerEvent<HTMLDivElement>): void => {
     if (drag.current?.pointerId !== event.pointerId) return
     drag.current = null
+    setSnapPreview(null)
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
   }
 
@@ -154,6 +268,9 @@ export function TerminalWindow({
     // has to record the drag origin. Both the size and the origin are captured:
     // a north/west drag derives the new x/y from them to pin the far edge.
     event.preventDefault()
+    // Resizing a snapped half turns it into a custom rectangle instead of
+    // snapping back to the remembered pre-snap geometry on the next drag.
+    if (win.snapped != null) onClearSnap(win.terminalId)
     resize.current = {
       pointerId: event.pointerId, dir,
       startX: event.clientX, startY: event.clientY,
@@ -188,53 +305,67 @@ export function TerminalWindow({
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
   }
 
-  // No z-index: the Dock renders windows in z-ascending order, so DOM order
-  // paints the most-recently-focused window on top.
-  const style = win.maximized
+  // No z-index: the Dock renders windows in z-ascending DOM order, so DOM order
+  // paints the most-recently-focused window on top. Snapped windows derive
+  // their half-screen rectangle from the live viewport rather than persisted px.
+  const style: CSSProperties = win.maximized
     ? { top: 8, left: 8, width: 'calc(100vw - 16px)', height: 'calc(100vh - 16px)' }
-    : { left: win.x, top: win.y, width: win.width, height: win.height }
+    : win.snapped != null
+      ? snapStyle(win.snapped)
+      : { left: win.x, top: win.y, width: win.width, height: win.height }
 
   return (
-    <section
-      className={clsx(css.window, win.minimized && css.windowHidden)}
-      style={style}
-      onPointerDown={() => { onFocus(win.terminalId) }}
-    >
-      <div className={css.windowBar} onPointerDown={onTitlePointerDown} onPointerMove={onTitlePointerMove} onPointerUp={onTitlePointerUp}>
-        <div className={css.windowLights}>
-          <button type="button" className={clsx(css.light, css.lightClose)} title="关闭" aria-label="关闭" onClick={() => { onClose(win.terminalId) }}><CloseGlyph /></button>
-          <button type="button" className={clsx(css.light, css.lightMin)} title="最小化" aria-label="最小化" onClick={() => { onMinimize(win.terminalId) }}><MinimizeGlyph /></button>
-          <button type="button" className={clsx(css.light, css.lightMax)} title={win.maximized ? '还原' : '最大化'} aria-label={win.maximized ? '还原' : '最大化'} onClick={() => { onToggleMaximize(win.terminalId) }}>{win.maximized ? <RestoreGlyph /> : <MaximizeGlyph />}</button>
-        </div>
-        <span className={css.windowTitle} title={info?.cwd}>{info?.name ?? `终端 ${win.terminalId}`}</span>
-        <span className={clsx(css.windowDot, info?.running === false && css.windowDotExited)} title={info?.running === false ? '已退出' : '运行中'} />
-      </div>
-      <div className={css.windowBody}>
-        <TerminalView
-          agentSessionId={win.ownerSessionId}
-          terminalId={win.terminalId}
-          active
-          focusToken={win.z}
-          writeTerminal={writeTerminal}
-          readTerminal={readTerminal}
-          resizeTerminal={resizeTerminal}
-          onTerminalOutput={onTerminalOutput}
-        />
-      </div>
-      {/* Pointer-only affordances: keyboard users resize through maximize, so
-          these stay out of the accessibility tree rather than posing as eight
-          operable controls. */}
-      {!win.maximized && RESIZE_HANDLES.map(({ dir, className }) => (
+    <>
+      {snapPreview !== null && (
+        <div className={css.snapPreview} style={snapStyle(snapPreview)} data-snap-preview={snapPreview} aria-hidden="true" />
+      )}
+      <section
+        className={clsx(css.window, win.minimized && css.windowHidden)}
+        style={style}
+        onPointerDown={() => { onFocus(win.terminalId) }}
+      >
         <div
-          key={dir}
-          className={clsx(css.resizeHandle, className)}
-          data-resize={dir}
-          aria-hidden="true"
-          onPointerDown={onResizePointerDown(dir)}
-          onPointerMove={onResizePointerMove}
-          onPointerUp={onResizePointerUp}
-        />
-      ))}
-    </section>
+          className={css.windowBar}
+          onPointerDown={onTitlePointerDown}
+          onPointerMove={onTitlePointerMove}
+          onPointerUp={onTitlePointerUp}
+          onPointerCancel={onTitlePointerCancel}
+        >
+          <div className={css.windowLights}>
+            <button type="button" className={clsx(css.light, css.lightClose)} title="关闭" aria-label="关闭" onClick={() => { onClose(win.terminalId) }}><CloseGlyph /></button>
+            <button type="button" className={clsx(css.light, css.lightMin)} title="最小化" aria-label="最小化" onClick={() => { onMinimize(win.terminalId) }}><MinimizeGlyph /></button>
+            <button type="button" className={clsx(css.light, css.lightMax)} title={win.maximized ? '还原' : '最大化'} aria-label={win.maximized ? '还原' : '最大化'} onClick={() => { onToggleMaximize(win.terminalId) }}>{win.maximized ? <RestoreGlyph /> : <MaximizeGlyph />}</button>
+          </div>
+          <span className={css.windowTitle} title={info?.cwd}>{info?.name ?? `终端 ${win.terminalId}`}</span>
+          <span className={clsx(css.windowDot, info?.running === false && css.windowDotExited)} title={info?.running === false ? '已退出' : '运行中'} />
+        </div>
+        <div className={css.windowBody}>
+          <TerminalView
+            agentSessionId={win.ownerSessionId}
+            terminalId={win.terminalId}
+            active
+            focusToken={win.z}
+            writeTerminal={writeTerminal}
+            readTerminal={readTerminal}
+            resizeTerminal={resizeTerminal}
+            onTerminalOutput={onTerminalOutput}
+          />
+        </div>
+        {/* Pointer-only affordances: keyboard users resize through maximize, so
+            these stay out of the accessibility tree rather than posing as eight
+            operable controls. */}
+        {!win.maximized && RESIZE_HANDLES.map(({ dir, className }) => (
+          <div
+            key={dir}
+            className={clsx(css.resizeHandle, className)}
+            data-resize={dir}
+            aria-hidden="true"
+            onPointerDown={onResizePointerDown(dir)}
+            onPointerMove={onResizePointerMove}
+            onPointerUp={onResizePointerUp}
+          />
+        ))}
+      </section>
+    </>
   )
 }

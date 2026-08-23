@@ -10,6 +10,17 @@
 import { defineStore, type EngineStoreHandle } from '@deepseek-ai/dsh-client-runtime/client'
 import type { SessionId } from '@deepseek-ai/dsh-client-runtime/client'
 
+/** One screen edge a floating terminal can snap to. */
+export type TerminalSnapSide = 'left' | 'right'
+
+/** Floating-window geometry, in px. */
+export interface TerminalWindowGeometry {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
 /** Geometry and stacking for one floating terminal window. */
 export interface TerminalWindowState {
   /** The Host PTY terminal id this window renders. */
@@ -28,6 +39,10 @@ export interface TerminalWindowState {
   minimized: boolean
   /** Whether the window fills the viewport. */
   maximized: boolean
+  /** The screen edge the window is snapped to, if any. */
+  snapped?: TerminalSnapSide | null
+  /** Geometry to restore when the user drags a snapped window away. */
+  restoreGeometry?: TerminalWindowGeometry | null
   /** Stacking order; higher renders on top. */
   z: number
 }
@@ -43,12 +58,7 @@ type TerminalViewState = {
 }
 
 /** Default geometry for a newly opened window, resolved by the component from the viewport. */
-export interface TerminalWindowDefaults {
-  x: number
-  y: number
-  width: number
-  height: number
-}
+export type TerminalWindowDefaults = TerminalWindowGeometry
 
 /** Mutation API for the Dock presentation state (the declared store actions). */
 type TerminalViewActions = {
@@ -62,6 +72,12 @@ type TerminalViewActions = {
   focusWindow: (draft: TerminalViewState, terminalId: string) => void
   moveWindow: (draft: TerminalViewState, terminalId: string, x: number, y: number) => void
   resizeWindow: (draft: TerminalViewState, terminalId: string, width: number, height: number) => void
+  /** Snap one window to a screen edge, remembering its pre-snap geometry. */
+  snapWindow: (draft: TerminalViewState, terminalId: string, side: TerminalSnapSide, geometry: TerminalWindowGeometry) => void
+  /** Restore one snapped window, optionally to a drag-continuing geometry. */
+  unsnapWindow: (draft: TerminalViewState, terminalId: string, geometry?: TerminalWindowGeometry) => void
+  /** Leave snap mode at the current geometry, discarding the pre-snap restore point. */
+  clearWindowSnap: (draft: TerminalViewState, terminalId: string) => void
   toggleMaximizeWindow: (draft: TerminalViewState, terminalId: string) => void
   /** Minimize every open window back to the Dock. */
   collapseAllWindows: (draft: TerminalViewState) => void
@@ -98,6 +114,8 @@ export function createTerminalStore(): EngineStoreHandle<TerminalViewState, Term
           height: defaults.height,
           minimized: false,
           maximized: false,
+          snapped: null,
+          restoreGeometry: null,
           z: d.zTop,
         }
       },
@@ -133,6 +151,45 @@ export function createTerminalStore(): EngineStoreHandle<TerminalViewState, Term
         if (window === undefined) return
         window.width = width
         window.height = height
+        // A manual resize turns the current geometry into a custom window.
+        window.snapped = null
+        window.restoreGeometry = null
+      },
+      snapWindow: (d, terminalId, side, geometry) => {
+        const window = d.windows[terminalId]
+        if (window === undefined || window.maximized) return
+        if (window.snapped == null) {
+          window.restoreGeometry = {
+            x: window.x,
+            y: window.y,
+            width: window.width,
+            height: window.height,
+          }
+        }
+        window.snapped = side
+        window.x = geometry.x
+        window.y = geometry.y
+        window.width = geometry.width
+        window.height = geometry.height
+      },
+      unsnapWindow: (d, terminalId, geometry) => {
+        const window = d.windows[terminalId]
+        if (window === undefined) return
+        const next = geometry ?? window.restoreGeometry
+        if (next != null) {
+          window.x = next.x
+          window.y = next.y
+          window.width = next.width
+          window.height = next.height
+        }
+        window.snapped = null
+        window.restoreGeometry = null
+      },
+      clearWindowSnap: (d, terminalId) => {
+        const window = d.windows[terminalId]
+        if (window === undefined) return
+        window.snapped = null
+        window.restoreGeometry = null
       },
       toggleMaximizeWindow: (d, terminalId) => {
         const window = d.windows[terminalId]

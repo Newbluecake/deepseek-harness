@@ -44,6 +44,9 @@ const WIN: TerminalWindowState = {
 function renderWindow(over: Partial<TerminalWindowState> = {}) {
   const onMove = vi.fn()
   const onResize = vi.fn()
+  const onSnap = vi.fn()
+  const onUnsnap = vi.fn()
+  const onClearSnap = vi.fn()
   const props = {
     win: { ...WIN, ...over },
     info: undefined,
@@ -57,6 +60,9 @@ function renderWindow(over: Partial<TerminalWindowState> = {}) {
     onFocus: vi.fn(),
     onMove,
     onResize,
+    onSnap,
+    onUnsnap,
+    onClearSnap,
   } as unknown as TerminalWindowProps
   const { container } = render(<TerminalWindow {...props} />)
   const handle = (dir: string): HTMLElement => {
@@ -67,7 +73,14 @@ function renderWindow(over: Partial<TerminalWindowState> = {}) {
     found.hasPointerCapture = vi.fn(() => false)
     return found
   }
-  return { container, onMove, onResize, handle }
+  const titleBar = (): HTMLElement => {
+    const found = container.querySelector<HTMLElement>('section > div')
+    if (found === null) throw new Error('no title bar')
+    found.setPointerCapture = vi.fn()
+    found.hasPointerCapture = vi.fn(() => false)
+    return found
+  }
+  return { container, onMove, onResize, onSnap, onUnsnap, onClearSnap, handle, titleBar }
 }
 
 /**
@@ -80,6 +93,22 @@ function drag(el: HTMLElement, dx: number, dy: number): void {
   fireEvent.pointerDown(el, { button: 0, pointerId: 1, clientX: 500, clientY: 400 })
   fireEvent.pointerMove(el, { pointerId: 1, clientX: 500 + dx, clientY: 400 + dy })
   fireEvent.pointerUp(el, { pointerId: 1 })
+}
+
+/**
+ * Drive one title-bar drag through explicit pointer coordinates.
+ * @param el - the title bar element.
+ * @param points - pointer coordinates in client order; the first point is pointerdown.
+ */
+function dragTitle(el: HTMLElement, ...points: Array<{ x: number; y: number }>): void {
+  const [start, ...moves] = points
+  if (start === undefined) throw new Error('dragTitle needs a start point')
+  fireEvent.pointerDown(el, { button: 0, pointerId: 1, clientX: start.x, clientY: start.y })
+  for (const point of moves) {
+    fireEvent.pointerMove(el, { pointerId: 1, clientX: point.x, clientY: point.y })
+  }
+  const end = moves.at(-1) ?? start
+  fireEvent.pointerUp(el, { pointerId: 1, clientX: end.x, clientY: end.y })
 }
 
 describe('TerminalWindow resize handles', () => {
@@ -187,5 +216,100 @@ describe('TerminalWindow resize handles', () => {
   it('renders no handles while maximized', () => {
     const { container } = renderWindow({ maximized: true })
     expect(container.querySelectorAll('[data-resize]')).toHaveLength(0)
+  })
+})
+
+describe('TerminalWindow edge snap', () => {
+  it('shows a left-half preview near the left edge and snaps on pointer up', () => {
+    const { container, onSnap, titleBar } = renderWindow()
+
+    dragTitle(titleBar(), { x: 500, y: 100 }, { x: 10, y: 120 })
+
+    expect(onSnap).toHaveBeenCalledWith('tw-1', 'left', { x: 8, y: 8, width: 500, height: 752 })
+    expect(container.querySelector('[data-snap-preview]')).toBeNull()
+  })
+
+  it('shows a right-half preview near the right edge and snaps on pointer up', () => {
+    const { container, onSnap, titleBar } = renderWindow()
+    const bar = titleBar()
+
+    fireEvent.pointerDown(bar, { button: 0, pointerId: 1, clientX: 500, clientY: 100 })
+    fireEvent.pointerMove(bar, { pointerId: 1, clientX: 1010, clientY: 120 })
+
+    expect(container.querySelector('[data-snap-preview="right"]')).not.toBeNull()
+    fireEvent.pointerUp(bar, { pointerId: 1, clientX: 1010, clientY: 120 })
+    expect(onSnap).toHaveBeenCalledWith('tw-1', 'right', { x: 516, y: 8, width: 500, height: 752 })
+  })
+
+  it('clears the preview without snapping when the pointer returns to the middle', () => {
+    const { container, onSnap, titleBar } = renderWindow()
+    const bar = titleBar()
+
+    fireEvent.pointerDown(bar, { button: 0, pointerId: 1, clientX: 500, clientY: 100 })
+    fireEvent.pointerMove(bar, { pointerId: 1, clientX: 10, clientY: 120 })
+    expect(container.querySelector('[data-snap-preview="left"]')).not.toBeNull()
+    fireEvent.pointerMove(bar, { pointerId: 1, clientX: 500, clientY: 120 })
+    expect(container.querySelector('[data-snap-preview]')).toBeNull()
+    fireEvent.pointerUp(bar, { pointerId: 1, clientX: 500, clientY: 120 })
+
+    expect(onSnap).not.toHaveBeenCalled()
+  })
+
+  it('restores the pre-snap size and keeps the drag under the pointer', () => {
+    const { onMove, onSnap, onUnsnap, titleBar } = renderWindow({
+      x: 8,
+      y: 8,
+      width: 500,
+      height: 752,
+      snapped: 'left',
+      restoreGeometry: { x: 200, y: 150, width: 640, height: 480 },
+    })
+    const bar = titleBar()
+
+    fireEvent.pointerDown(bar, { button: 0, pointerId: 1, clientX: 258, clientY: 38 })
+    fireEvent.pointerMove(bar, { pointerId: 1, clientX: 500, clientY: 100 })
+
+    expect(onUnsnap).toHaveBeenCalledWith('tw-1', { x: 180, y: 70, width: 640, height: 480 })
+    expect(onMove).not.toHaveBeenCalled()
+
+    fireEvent.pointerMove(bar, { pointerId: 1, clientX: 520, clientY: 120 })
+    expect(onMove).toHaveBeenCalledWith('tw-1', 200, 90)
+
+    fireEvent.pointerUp(bar, { pointerId: 1, clientX: 520, clientY: 120 })
+    expect(onSnap).not.toHaveBeenCalled()
+  })
+
+  it('uses live viewport-relative geometry for a persisted snapped window', () => {
+    const { container } = renderWindow({ snapped: 'right' })
+    const section = container.querySelector('section')
+
+    expect(section?.style.left).toBe('calc(4px + 50vw)')
+    expect(section?.style.width).toBe('calc(0.5 * (100vw - 24px))')
+    expect(section?.style.height).toBe('calc(100vh - 16px)')
+  })
+
+  it('does not start edge snapping from a maximized window', () => {
+    const { container, onMove, onSnap, titleBar } = renderWindow({ maximized: true })
+
+    dragTitle(titleBar(), { x: 500, y: 100 }, { x: 10, y: 120 })
+
+    expect(onMove).not.toHaveBeenCalled()
+    expect(onSnap).not.toHaveBeenCalled()
+    expect(container.querySelector('[data-snap-preview]')).toBeNull()
+  })
+
+  it('manual resize clears snap mode while keeping the current rectangle', () => {
+    const { onClearSnap, handle } = renderWindow({
+      x: 8,
+      y: 8,
+      width: 500,
+      height: 752,
+      snapped: 'left',
+      restoreGeometry: { x: 200, y: 150, width: 640, height: 480 },
+    })
+
+    drag(handle('se'), 20, 20)
+
+    expect(onClearSnap).toHaveBeenCalledWith('tw-1')
   })
 })

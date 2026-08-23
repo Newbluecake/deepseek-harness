@@ -312,6 +312,9 @@ export function TerminalDock({
           onFocus={(id) => { actions.focusWindow(id) }}
           onMove={(id, x, y) => { actions.moveWindow(id, x, y) }}
           onResize={(id, width, height) => { actions.resizeWindow(id, width, height) }}
+          onSnap={(id, side, geometry) => { actions.snapWindow(id, side, geometry) }}
+          onUnsnap={(id, geometry) => { actions.unsnapWindow(id, geometry) }}
+          onClearSnap={(id) => { actions.clearWindowSnap(id) }}
         />
       ))}
     </>
