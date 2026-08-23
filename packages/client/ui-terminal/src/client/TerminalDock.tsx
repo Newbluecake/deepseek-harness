@@ -243,6 +243,7 @@ export function TerminalDock({
                     className={css.dockItem}
                     role="menuitem"
                     tabIndex={0}
+                    onPointerDown={(event) => { event.preventDefault() }}
                     onClick={() => { openTerminal(info) }}
                     onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openTerminal(info) } }}
                   >
