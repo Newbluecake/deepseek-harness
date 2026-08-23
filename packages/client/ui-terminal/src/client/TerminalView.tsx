@@ -5,7 +5,7 @@
  * the session's stdin. The instance stays mounted while its tab is inactive so
  * emulator state survives tab switches.
  */
-import { useEffect, useRef } from 'react'
+import { useEffect, useLayoutEffect, useRef } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import type { SessionId } from '@deepseek-ai/dsh-client-runtime/client'
@@ -57,6 +57,7 @@ export function TerminalView({
     term.open(container)
     fit.fit()
     terminalRef.current = term
+    term.focus()
 
     const viewport = container.querySelector<HTMLElement>('.xterm-viewport')
     let scrollIndicatorTimer: ReturnType<typeof setTimeout> | undefined
@@ -131,9 +132,13 @@ export function TerminalView({
     }
   }, [agentSessionId, terminalId, writeTerminal, readTerminal, resizeTerminal, onTerminalOutput])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     terminalRef.current?.focus()
   }, [focusToken])
 
-  return <div ref={containerRef} className={active ? css.term : `${css.term} ${css.termHidden}`} />
+  const focusTerminal = (): void => {
+    terminalRef.current?.focus()
+  }
+
+  return <div ref={containerRef} className={active ? css.term : `${css.term} ${css.termHidden}`} onPointerDown={focusTerminal} />
 }

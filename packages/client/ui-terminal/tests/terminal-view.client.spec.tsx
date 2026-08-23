@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /** TerminalView focus behavior: raising a window transfers keyboard focus once. */
-import { cleanup, render } from '@testing-library/react'
+import { cleanup, fireEvent, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SessionId } from '@deepseek-ai/dsh-client-runtime/client'
 import { TerminalView } from '../src/client/TerminalView.tsx'
@@ -75,6 +75,17 @@ describe('TerminalView focus', () => {
     view.rerender(<TerminalView {...props} focusToken={2} />)
 
     expect(fakeTerminals).toHaveLength(1)
+    expect(terminal?.focus).toHaveBeenCalledTimes(2)
+  })
+
+  it('focuses xterm synchronously when the terminal surface receives a pointer down', () => {
+    const { container } = render(<TerminalView {...props} />)
+    const terminal = fakeTerminals[0]
+    expect(terminal).toBeDefined()
+    expect(container.firstElementChild).not.toBeNull()
+
+    fireEvent.pointerDown(container.firstElementChild as Element)
+
     expect(terminal?.focus).toHaveBeenCalledTimes(2)
   })
 })
