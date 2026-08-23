@@ -26,9 +26,9 @@ async function bench(served?: string[]) {
   const locale = new LocaleRuntime(ctx)
   locale.setLocale('zh')
   ctx.provide('locale', locale)
-  const describeCredentials = vi.fn(() => Promise.resolve({ rpcId: 'c', result: { ok: false, error: {} } }))
+  const describeCredentials = vi.fn(() => Promise.resolve({ rpcId: 'c', result: { ok: false, error: { message: 'settings unavailable' } } }))
   const describeSettings = vi.fn(() => Promise.resolve(served === undefined
-    ? { rpcId: 's', result: { ok: false, error: {} } }
+    ? { rpcId: 's', result: { ok: false, error: { message: 'settings unavailable' } } }
     : {
       rpcId: 's',
       result: {
