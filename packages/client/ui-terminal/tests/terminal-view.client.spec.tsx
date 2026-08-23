@@ -78,7 +78,13 @@ describe('TerminalView focus', () => {
     expect(terminal?.focus).toHaveBeenCalledTimes(2)
   })
 
-  it('focuses xterm synchronously when the terminal surface receives a pointer down', () => {
+  it('focuses xterm synchronously and again after the pointer event settles', () => {
+    vi.useFakeTimers()
+    const requestAnimationFrame = vi.fn((callback: FrameRequestCallback) => {
+      callback(0)
+      return 1
+    })
+    vi.stubGlobal('requestAnimationFrame', requestAnimationFrame)
     const { container } = render(<TerminalView {...props} />)
     const terminal = fakeTerminals[0]
     expect(terminal).toBeDefined()
@@ -86,6 +92,10 @@ describe('TerminalView focus', () => {
 
     fireEvent.pointerDown(container.firstElementChild as Element)
 
-    expect(terminal?.focus).toHaveBeenCalledTimes(2)
+    expect(terminal?.focus).toHaveBeenCalledTimes(3)
+    vi.runAllTimers()
+    expect(terminal?.focus).toHaveBeenCalledTimes(4)
+    expect(requestAnimationFrame).toHaveBeenCalledOnce()
+    vi.useRealTimers()
   })
 })

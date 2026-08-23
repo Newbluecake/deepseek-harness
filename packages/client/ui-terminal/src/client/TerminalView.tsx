@@ -137,7 +137,15 @@ export function TerminalView({
   }, [focusToken])
 
   const focusTerminal = (): void => {
-    terminalRef.current?.focus()
+    const term = terminalRef.current
+    if (term === undefined) return
+    term.focus()
+    // Raising a floating window reorders its DOM subtree while the pointer is
+    // still down. Chrome can retarget the pending mousedown to the moved
+    // wrapper and blur the textarea again, so restore focus after the current
+    // mouse event and after the next frame.
+    setTimeout(() => { terminalRef.current?.focus() }, 0)
+    requestAnimationFrame(() => { terminalRef.current?.focus() })
   }
 
   return <div ref={containerRef} className={active ? css.term : `${css.term} ${css.termHidden}`} onPointerDown={focusTerminal} />
