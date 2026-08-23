@@ -5,6 +5,7 @@
  * viewer through the shared store; clicking a directory toggles its children.
  */
 import { useEffect, useRef, useState } from 'react'
+import type { JSX } from 'react'
 import type { FileExplorerEntry, SearchFileMatch } from '@deepseek-ai/dsh-file-explorer/types'
 import type { FileExplorerProps } from './contract/slots.ts'
 import {
@@ -300,7 +301,7 @@ export function FileExplorer({
   const loadRoot = (): void => {
     setRootState({ loading: true, path: null, error: null })
     setTree({})
-    listDir(sessionId, null).then((result) => {
+    void listDir(sessionId, null).then((result) => {
       if (result.ok) {
         setTree({ [result.value.path]: { entries: result.value.entries, expanded: true, loaded: true, loading: false, error: null } })
         setRootState({ loading: false, path: result.value.path, error: null })
@@ -329,7 +330,7 @@ export function FileExplorer({
       return { ...prev, [path]: { ...base, expanded: true, loading: needLoad, error: null } }
     })
     if (needLoad) {
-      listDir(sessionId, path).then((result) => {
+      void listDir(sessionId, path).then((result) => {
         setTree((prev) => {
           const current = prev[path]
           if (current === undefined) return prev
@@ -399,7 +400,7 @@ export function FileExplorer({
     const token = ++searchToken.current
     setSearching(true)
     searchTimer.current = setTimeout(() => {
-      searchFiles(sessionId, { query: trimmed }).then((result) => {
+      void searchFiles(sessionId, { query: trimmed }).then((result) => {
         if (searchToken.current !== token) return
         setSearchMatches(result.ok ? result.value.matches : null)
         setSearching(false)
@@ -424,7 +425,9 @@ export function FileExplorer({
   useEffect(() => {
     if (locatePath === null) return
     const target = listRef.current?.querySelector('[aria-current="location"]')
-    target?.scrollIntoView?.({ block: 'center' })
+    if (target === null || target === undefined) return
+    const scrollIntoView: unknown = Reflect.get(target, 'scrollIntoView')
+    if (typeof scrollIntoView === 'function') scrollIntoView.call(target, { block: 'center' })
   }, [locatePath])
 
   const q = query.trim().toLowerCase()
@@ -456,11 +459,11 @@ export function FileExplorer({
         )
         if (expanded) {
           const childIndent = `${(depth + 1) * 14 + 6}px`
-          if (child?.loading === true) {
+          if (child.loading) {
             rows.push(<div key={`${entry.path}:loading`} className={css.emptyInline} style={{ paddingLeft: childIndent }}><Spinner /><span className={css.muted}>加载中…</span></div>)
-          } else if (child?.error != null) {
+          } else if (child.error !== null) {
             rows.push(<div key={`${entry.path}:error`} className={`${css.emptyInline} ${css.error}`} style={{ paddingLeft: childIndent }}>{child.error}</div>)
-          } else if (child?.loaded === true && child.entries.length === 0) {
+          } else if (child.loaded && child.entries.length === 0) {
             rows.push(<div key={`${entry.path}:empty`} className={css.emptyInline} style={{ paddingLeft: childIndent }}>（空）</div>)
           } else {
             renderNodes(entry.path, depth + 1)

@@ -285,6 +285,67 @@ type FsErrorCode =
 
 Generated from source by `scripts/gen-cordis-catalog.ts` (verified fresh by `pnpm run verify-cordis-catalog` in doc-sync; regenerate with `pnpm run gen-cordis-catalog`) — the language sides differ only in locale-specific paired document paths. Signature blocks use a `ts cordis-catalog` fence and keep the original source JSDoc; dispatch modes are defined in the [primer](../cordis-primer.md#dispatch-modes), and the framework-inherited `ctx` API lives in [cordis-api/inherited.md](../cordis-api/inherited.md).
 
+<a id="ctxfileexplorer--fileexplorerservice"></a>
+
+### `ctx.fileExplorer` — `FileExplorerService`
+
+Read-only data face for the file-explorer UI. It reads the calling session's filesystem and runs read-only git commands against that session's workspace root; it never writes files or mutates git state.
+
+```ts cordis-catalog
+/**
+ * List one directory's direct children. A `null` path lists the session
+ * workspace root; relative paths resolve against it.
+ * @param agent - exact live Agent resolved from the wire identity.
+ * @param path - absolute or workspace-relative path, or `null` for the root.
+ * @returns the projected listing.
+ */
+@Remote('listDir') async listDir(agent: Agent, path: string | null): Promise<ListDirResult>
+
+/**
+ * Read one regular UTF-8 text file for preview.
+ * @param agent - exact live Agent resolved from the wire identity.
+ * @param path - absolute or workspace-relative path.
+ * @returns the decoded text.
+ */
+@Remote('readFile') async readFile(agent: Agent, path: string): Promise<ReadFileResult>
+
+/**
+ * Discover staged and unstaged changes in the session workspace repository.
+ * @param agent - exact live Agent resolved from the wire identity.
+ * @returns the two change groups.
+ */
+@Remote('gitStatus') async gitStatus(agent: Agent): Promise<GitStatusResult>
+
+/**
+ * Resolve the old/new text pair for one changed file.
+ * @param agent - exact live Agent resolved from the wire identity.
+ * @param request - path and which change segment to diff.
+ * @returns the two text sides.
+ */
+@Remote('fileDiff') async fileDiff(agent: Agent, request: FileDiffRequest): Promise<FileDiffResult>
+
+/**
+ * Resolve the commit-history graph across all refs.
+ * @param agent - exact live Agent resolved from the wire identity.
+ * @returns the ASCII `git log --graph` output.
+ */
+@Remote('gitLog') async gitLog(agent: Agent): Promise<GitLogResult>
+
+/**
+ * Search the whole workspace for files whose repository-relative path
+ * matches a query. Lists the git index plus untracked files, so results
+ * cover unexpanded directories and skip `.git` and ignored build output.
+ * @param agent - exact live Agent resolved from the wire identity.
+ * @param request - the trimmed, lowercased query.
+ * @returns matching files in path order, capped at the service bound.
+ */
+@Remote('searchFiles') async searchFiles(agent: Agent, request: SearchFilesRequest): Promise<SearchFilesResult>
+```
+
+Types: [Agent](core.md)
+
+Source: [`packages/fs/file-explorer/src/index.ts`](../../packages/fs/file-explorer/src/index.ts)
+
 <a id="ctxfs--filesystem-abstract-seam"></a>
 
 ### `ctx.fs` — `FileSystem` (abstract seam)

@@ -2,6 +2,7 @@
  * Per-file git diff modal. The changes list stays in the session details
  * column; selecting one changed file opens this overlay.
  */
+import type { JSX } from 'react'
 import type { GitModalProps } from './contract/slots.ts'
 import { DiffViewer } from './DiffViewer.tsx'
 import { useModalFocus } from './useModalFocus.ts'

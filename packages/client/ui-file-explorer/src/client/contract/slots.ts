@@ -115,11 +115,9 @@ interface FileExplorerRailInjected {
   showFiles: () => void
   showDiff: () => void
   showGitTree: () => void
-  closeGitTree: () => void
-  closeTerminal: () => void
-  toggleTerminal: () => void
 }
 
+/** Props for the file and Git navigation rail. */
 export type FileExplorerRailProps =
   PropsRuntime<'shell.overlay'>
   & FileExplorerRailInjected

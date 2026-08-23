@@ -1,4 +1,5 @@
 /** Git Tree modal hosting the commit graph outside the details column. */
+import type { JSX } from 'react'
 import type { GitModalProps } from './contract/slots.ts'
 import { GitTreeViewer } from './GitTreeViewer.tsx'
 import { useModalFocus } from './useModalFocus.ts'

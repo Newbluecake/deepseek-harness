@@ -1223,7 +1223,7 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
     ],
     replaceRisk: 'none',
     example: 'return {\n  inject: [\'slots\'],\n  apply(ctx) {\n    ctx.slots.inject(\'file-explorer.overlay\', () => ctx.slots.register(\n      { name: \'file-explorer.overlay\', id: \'my-entry\', order: 100, label: \'My entry\' },\n      () => React.createElement(\'div\', null, \'hello\'),\n    ))\n  },\n}',
-    source: 'packages/client/ui-file-explorer/src/client/contract/slots.ts:47',
+    source: 'packages/client/ui-file-explorer/src/client/contract/slots.ts:49',
   },
   {
     key: 'root',
@@ -1636,7 +1636,7 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
     declaredBy: 'an entry in \'root\' (client-ui-layout), so it exists while that entry is mounted',
     occupants: [
       'client-ui-file-explorer FileExplorerRail id \'file-explorer-rail\'',
-      'client-ui-terminal TerminalPanel id \'terminal-panel\'',
+      'client-ui-terminal TerminalDock id \'terminal-panel\'',
     ],
     replaceRisk: 'none',
     example: 'return {\n  inject: [\'slots\'],\n  apply(ctx) {\n    ctx.slots.inject(\'shell.overlay\', () => ctx.slots.register(\n      { name: \'shell.overlay\', id: \'my-entry\', order: 100, label: \'My entry\' },\n      () => React.createElement(\'div\', null, \'hello\'),\n    ))\n  },\n}',

@@ -45,6 +45,18 @@ describe('ui-layout client apply', () => {
     const fiber = ctx.plugin({ inject: [...inject], apply })
     await fiber.await()
     expect(ctx.get('layout')).toBeInstanceOf(LayoutController)
+    const surfaceCoordinator = ctx.get('surfaceCoordinator') as {
+      subscribe(listener: (action: 'collapse' | 'expand') => void): () => void
+      collapseAll(): void
+      expandAll(): void
+    }
+    const listener = vi.fn()
+    const disposeSurface = surfaceCoordinator.subscribe(listener)
+    surfaceCoordinator.collapseAll()
+    surfaceCoordinator.expandAll()
+    expect(listener).toHaveBeenNthCalledWith(1, 'collapse')
+    expect(listener).toHaveBeenNthCalledWith(2, 'expand')
+    disposeSurface()
     // The one register() call occupied 'root'…
     expect(slots.entries('root')).toHaveLength(1)
     // …and declared the three children in the ledger.
@@ -98,6 +110,7 @@ describe('ui-layout client apply', () => {
     await fiber.await()
     await fiber.dispose()
     expect(ctx.get('layout')).toBeUndefined()
+    expect(ctx.get('surfaceCoordinator')).toBeUndefined()
     expect(slots.entries('root')).toHaveLength(0)
     expect(slots.spec('sidebar')).toBeUndefined()
     // The built-in root declaration survives entry teardown (runtime-owned).

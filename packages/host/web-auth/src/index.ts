@@ -23,8 +23,8 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
-import type {} from '@deepseek-ai/dsh-host-webserver'
-import { isSecureRequest, readCookie, serializeSessionCookie, SESSION_COOKIE, type CookieBearingRequest } from './cookie.ts'
+import type { WebAuthHandle } from '@deepseek-ai/dsh-host-webserver'
+import { isSecureRequest, readCookie, serializeSessionCookie, SESSION_COOKIE } from './cookie.ts'
 import { renderLoginPage } from './login-page.ts'
 import { AttemptLimiter } from './rate-limit.ts'
 import { SessionTable } from './sessions.ts'
@@ -58,23 +58,6 @@ const NEXT_BASE = 'http://gate.invalid'
 
 /** Origin of {@link NEXT_BASE}, compared against every resolved target. */
 const NEXT_ORIGIN = new URL(NEXT_BASE).origin
-
-declare module '@deepseek-ai/cordis' {
-  interface Context {
-    /** Whether a given request carries a session this deployment issued. */
-    webAuth: WebAuthHandle
-  }
-}
-
-/** The one question other host rows ask this package. */
-export interface WebAuthHandle {
-  /**
-   * Whether one request carries a live session issued by this deployment.
-   * @param req - the request to classify, in either HTTP representation.
-   * @returns true when its session cookie names a live session.
-   */
-  isAuthenticated: (req: CookieBearingRequest) => boolean
-}
 
 /** Plugin config: the credential reference and session lifetime. */
 export interface Config {

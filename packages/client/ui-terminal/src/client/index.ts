@@ -13,7 +13,7 @@ import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import type { TerminalInjected } from './contract/slots.ts'
 import { createTerminalStore } from './store.ts'
 import { TerminalDock } from './TerminalDock.tsx'
-import { SurfaceCollapseService, TerminalPanelController } from './service.ts'
+import { TerminalPanelController } from './service.ts'
 // The xterm.js base stylesheet, inlined into the bundle (the build's CSS asset
 // pipeline cannot resolve bare package CSS specifiers, so it ships as a string).
 import xtermCss from './xterm.css?inline'
@@ -21,7 +21,7 @@ import xtermCss from './xterm.css?inline'
 export type { ITerminalPanel, TerminalInjected, TerminalPanelProps, TerminalPanelSnapshot } from './contract/slots.ts'
 
 /** Required services: the slot registry, the terminal Remote namespace, and the session list. */
-export const inject = ['slots', 'remote', 'remote.terminalWeb', 'sessions']
+export const inject = ['slots', 'remote', 'remote.terminalWeb', 'sessions', 'surfaceCoordinator']
 
 /**
  * Register the terminal Dock once its slot declaration is on the ledger. The
@@ -42,8 +42,10 @@ export function apply(ctx: ClientContext): void {
   const store = createTerminalStore()
   const terminalPanel = new TerminalPanelController()
   ctx.reflect.provide('terminalPanel', terminalPanel)
-  const surfaceCollapse = new SurfaceCollapseService()
-  ctx.reflect.provide('surfaceCollapse', surfaceCollapse)
+  const surfaceCoordinator = ctx.get('surfaceCoordinator') as {
+    collapseAll(): void
+    expandAll(): void
+  }
   const injected = (): TerminalInjected => ({
     spawnTerminal: (sessionId, request) => remote.spawn(sessionId, request),
     writeTerminal: (sessionId, request) => remote.write(sessionId, request),
@@ -56,8 +58,8 @@ export function apply(ctx: ClientContext): void {
     readTerminal: (sessionId, request) => remote.read(sessionId, request),
     onTerminalOutput: listener => ctx.remote.$on('terminal/output', listener),
     onTerminalExit: listener => ctx.remote.$on('terminal/exit', listener),
-    collapseAllSurfaces: () => { surfaceCollapse.collapseAll() },
-    expandAllSurfaces: () => { surfaceCollapse.expandAll() },
+    collapseAllSurfaces: () => { surfaceCoordinator.collapseAll() },
+    expandAllSurfaces: () => { surfaceCoordinator.expandAll() },
     terminalPanel,
   })
   ctx.slots.inject('shell.overlay', () => ctx.slots.register(

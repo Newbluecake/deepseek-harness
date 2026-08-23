@@ -1,5 +1,6 @@
 /** Git changes list embedded in the session details column. */
 import { useCallback, useEffect, useState } from 'react'
+import type { JSX } from 'react'
 import type { GitChange } from '@deepseek-ai/dsh-file-explorer/types'
 import type { FileExplorerProps } from './contract/slots.ts'
 import css from './DiffViewer.module.css'

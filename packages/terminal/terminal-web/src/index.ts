@@ -91,7 +91,7 @@ export class TerminalWebService extends TypertRemoteService {
 
   private readonly sessions = new Map<string, PtySession>()
   private readonly ownerSessions = new Map<Agent, Set<string>>()
-  private readonly ownerCleanups = new Map<Agent, () => void>()
+  private readonly ownerCleanups = new Map<Agent, () => Promise<void> | void>()
   /** Per-agent creation-order counter for default terminal names (终端 1, 终端 2, …). */
   private readonly ownerCounters = new Map<Agent, number>()
   private nextId = 0
@@ -168,10 +168,10 @@ export class TerminalWebService extends TypertRemoteService {
    * @param request - target session and the new dimensions.
    */
   @Remote('resize')
-  async resize(agent: Agent, request: TerminalWebResizeRequest): Promise<void> {
+  resize(agent: Agent, request: TerminalWebResizeRequest): Promise<void> {
     const session = this.expectOwned(agent, request.sessionId)
-    if (!session.running) return
-    session.handle.resize(request.cols, request.rows)
+    if (session.running) session.handle.resize(request.cols, request.rows)
+    return Promise.resolve()
   }
 
   /**
@@ -191,9 +191,10 @@ export class TerminalWebService extends TypertRemoteService {
    * @param request - target session and the new name.
    */
   @Remote('rename')
-  async rename(agent: Agent, request: TerminalWebRenameRequest): Promise<void> {
+  rename(agent: Agent, request: TerminalWebRenameRequest): Promise<void> {
     const session = this.expectOwned(agent, request.sessionId)
     session.name = request.name
+    return Promise.resolve()
   }
 
   /**
@@ -202,15 +203,15 @@ export class TerminalWebService extends TypertRemoteService {
    * @returns the owned sessions in spawn order.
    */
   @Remote('list')
-  async list(agent: Agent): Promise<TerminalWebListResult> {
+  list(agent: Agent): Promise<TerminalWebListResult> {
     const ids = this.ownerSessions.get(agent)
-    if (ids === undefined) return { sessions: [] }
+    if (ids === undefined) return Promise.resolve({ sessions: [] })
     const sessions: TerminalWebSessionInfo[] = []
     for (const id of ids) {
       const session = this.sessions.get(id)
       if (session !== undefined) sessions.push(this.info(session))
     }
-    return { sessions }
+    return Promise.resolve({ sessions })
   }
 
   /**
@@ -221,10 +222,10 @@ export class TerminalWebService extends TypertRemoteService {
    * @returns all live sessions in global spawn order, each carrying its owner.
    */
   @Remote('listAll')
-  async listAll(): Promise<TerminalWebListResult> {
+  listAll(): Promise<TerminalWebListResult> {
     const sessions: TerminalWebSessionInfo[] = []
     for (const session of this.sessions.values()) sessions.push(this.info(session))
-    return { sessions }
+    return Promise.resolve({ sessions })
   }
 
   /**
@@ -234,9 +235,9 @@ export class TerminalWebService extends TypertRemoteService {
    * @returns the bounded scrollback and the sequence to resume from.
    */
   @Remote('read')
-  async read(agent: Agent, request: TerminalWebReadRequest): Promise<TerminalWebReadResult> {
+  read(agent: Agent, request: TerminalWebReadRequest): Promise<TerminalWebReadResult> {
     const session = this.expectOwned(agent, request.sessionId)
-    return { text: session.scrollback, seq: session.seq, truncated: session.scrollbackTruncated }
+    return Promise.resolve({ text: session.scrollback, seq: session.seq, truncated: session.scrollbackTruncated })
   }
 
   private workspaceRoot(agent: Agent): string {
@@ -350,7 +351,7 @@ export class TerminalWebService extends TypertRemoteService {
 
   private ensureOwnerCleanup(agent: Agent): void {
     if (this.ownerCleanups.has(agent)) return
-    const detach = agent.ctx.effect(() => async () => {
+    const cleanup = async (): Promise<void> => {
       this.ownerCleanups.delete(agent)
       this.ownerCounters.delete(agent)
       const owned = this.ownerSessions.get(agent)
@@ -359,7 +360,8 @@ export class TerminalWebService extends TypertRemoteService {
         const session = this.sessions.get(id)
         if (session !== undefined) await this.closeSession(agent, session)
       }
-    }, 'terminal-web.ownerCleanup()')
+    }
+    const detach = agent.ctx.effect(() => cleanup, 'terminal-web.ownerCleanup()')
     this.ownerCleanups.set(agent, detach)
   }
 }

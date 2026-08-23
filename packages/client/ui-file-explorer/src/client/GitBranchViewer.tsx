@@ -1,5 +1,6 @@
 /** Compact first-parent history for the current branch in the details column. */
 import { useEffect, useState } from 'react'
+import type { JSX } from 'react'
 import type { GitLogCommit } from '@deepseek-ai/dsh-file-explorer/types'
 import type { GraphContentProps } from './contract/slots.ts'
 import css from './GitBranchViewer.module.css'

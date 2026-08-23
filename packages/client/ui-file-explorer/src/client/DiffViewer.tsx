@@ -1,5 +1,6 @@
 /** Side-by-side diff for one selected git change. */
 import { useEffect, useRef, useState } from 'react'
+import type { JSX } from 'react'
 import type { FileDiffRequest } from '@deepseek-ai/dsh-file-explorer/types'
 import type { DiffContentProps } from './contract/slots.ts'
 import { diffRows, type DiffRow } from './diff.ts'
@@ -80,7 +81,7 @@ export function DiffViewer({ sessionId, request, fileDiff }: DiffContentProps) {
   useEffect(() => {
     setData({ loading: true, oldText: '', newText: '', error: null })
     const selected: FileDiffRequest = request
-    fileDiff(sessionId, selected).then((result) => {
+    void fileDiff(sessionId, selected).then((result) => {
       if (result.ok) setData({ loading: false, oldText: result.value.oldText, newText: result.value.newText, error: null })
       else setData({ loading: false, oldText: '', newText: '', error: result.error.message })
     })

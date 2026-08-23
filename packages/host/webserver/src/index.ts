@@ -23,6 +23,8 @@ export type { IndexInjection, IndexInjectionPlacement } from './injections.ts'
 declare module '@deepseek-ai/cordis' {
   interface Context {
     webServer: WebServer
+    /** Optional request-authentication Provider used by browser transport consumers. */
+    webAuth: WebAuthHandle
   }
   interface Events {
     /**
@@ -80,6 +82,17 @@ export interface WebGate {
    * @returns true to dispatch normally; false to destroy the socket.
    */
   upgrade: (req: IncomingMessage) => boolean | Promise<boolean>
+}
+
+/** Request headers that an authentication Provider may inspect. */
+export interface WebAuthenticationRequest {
+  headers: IncomingMessage['headers'] | Headers
+}
+
+/** Authentication result consumed by the Web transport and admission policy. */
+export interface WebAuthHandle {
+  /** Return true when this request carries a live authenticated principal. */
+  isAuthenticated: (req: WebAuthenticationRequest) => boolean
 }
 
 /** Gateway config: the listen address. */

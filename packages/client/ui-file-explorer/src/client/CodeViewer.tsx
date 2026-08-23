@@ -4,6 +4,7 @@
  * viewing store, so the tree's click drives this entry.
  */
 import { useEffect, useMemo, useState } from 'react'
+import type { JSX } from 'react'
 import type { CodeViewerProps } from './contract/slots.ts'
 import { MarkdownText } from '@deepseek-ai/dsh-client-ui-primitives'
 import { tokenize, usesHashComments, type HighlightToken } from './highlight.ts'
@@ -90,7 +91,7 @@ export function CodeViewer({ sessionId, useStore, actions, readFile }: CodeViewe
     if (file === null) { setContent({ loading: false, text: '', truncated: false, error: null }); return }
     setContent({ loading: true, text: '', truncated: false, error: null })
     setMarkdownMode('rendered')
-    readFile(sessionId, file.path).then((result) => {
+    void readFile(sessionId, file.path).then((result) => {
       if (result.ok) setContent({ loading: false, text: result.value.content, truncated: result.value.truncated, error: null })
       else setContent({ loading: false, text: '', truncated: false, error: result.error.message })
     })

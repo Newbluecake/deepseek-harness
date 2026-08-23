@@ -5,6 +5,8 @@
  * its upstream brand colors and takes a {size} prop; fill-less glyphs
  * (markdown, rust) inherit the surrounding `color` via `fill="currentColor"`.
  */
+import type { JSX } from 'react'
+
 export interface DeviconProps {
   /** Rendered square size in pixels (both width and height). */
   size?: number

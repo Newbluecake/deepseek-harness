@@ -3,6 +3,7 @@
  * with colored lanes, commit nodes, and ref badges in the details column.
  */
 import { useEffect, useMemo, useState } from 'react'
+import type { JSX } from 'react'
 import type { GitLogCommit, GitLogRef } from '@deepseek-ai/dsh-file-explorer/types'
 import type { GraphContentProps } from './contract/slots.ts'
 import { BRANCH_COLORS, buildGitGraph, type GraphEdge } from './gitGraph.ts'

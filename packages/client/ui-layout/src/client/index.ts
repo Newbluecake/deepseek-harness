@@ -12,7 +12,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-theme/client'
 import type { PanelActions } from './service.ts'
 import { AppFrame } from './AppFrame.tsx'
 import { createLayoutStore } from './stores.ts'
-import { LayoutController } from './service.ts'
+import { LayoutController, SurfaceCoordinator } from './service.ts'
 import { ThemePresenter } from './theme-presenter.ts'
 
 // Contract exports only (export-convergence rule: cross-package consumers
@@ -115,8 +115,10 @@ export const inject = ['slots', 'theme']
  */
 export function apply(ctx: ClientContext): void {
   const layout = new LayoutController()
+  const surfaceCoordinator = new SurfaceCoordinator()
   ctx.effect(() => {
-    const disposeService = ctx.reflect.provide('layout', layout)
+    const disposeLayout = ctx.reflect.provide('layout', layout)
+    const disposeSurfaceCoordinator = ctx.reflect.provide('surfaceCoordinator', surfaceCoordinator)
     const disposeRegistration = ctx.slots.register({
       name: 'root',
       children: {
@@ -138,7 +140,8 @@ export function apply(ctx: ClientContext): void {
     return () => {
       disposeRegistration()
       // provide()'s disposer settles asynchronously; teardown is synchronous fire-and-forget.
-      void disposeService()
+      void disposeLayout()
+      void disposeSurfaceCoordinator()
     }
   }, 'ui-layout: service + root registration')
 

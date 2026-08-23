@@ -54,11 +54,21 @@ A request whose handling throws (a malformed %-escape hitting `decodeURIComponen
 
 Generated from source by `scripts/gen-cordis-catalog.ts` (verified fresh by `pnpm run verify-cordis-catalog` in doc-sync; regenerate with `pnpm run gen-cordis-catalog`) — the language sides differ only in locale-specific paired document paths. Signature blocks use a `ts cordis-catalog` fence and keep the original source JSDoc; dispatch modes are defined in the [primer](../cordis-primer.md#dispatch-modes), and the framework-inherited `ctx` API lives in [cordis-api/inherited.md](../cordis-api/inherited.md).
 
+<a id="ctxwebauth--webauthhandle"></a>
+
+### `ctx.webAuth` — `WebAuthHandle`
+
+Authentication result consumed by the Web transport and admission policy.
+
+Source: [`packages/host/webserver/src/index.ts`](../../packages/host/webserver/src/index.ts)
+
 <a id="ctxwebserver--webserver"></a>
 
 ### `ctx.webServer` — `WebServer`
 
 The browser HTTP carrier service. Activation listens immediately. Route registration order does not affect requests because configured named routes must be distinct, and the fallback handler answers anything not yet claimed during startup with 404 until its owner registers. A listen failure rejects initialization, and the boot process reports the failed fiber.
+
+A non-loopback bind refuses every request and destroys every upgrade while the WebGate seat is empty, so publishing this server to the network without an authentication row serves nothing.
 
 ```ts cordis-catalog
 /**
@@ -95,6 +105,22 @@ registerFallback(handler: WebRoute['handler']): () => void
  * @returns the disposer removing the transform.
  */
 tapIndex(transform: (html: string) => string): () => void
+
+/**
+ * Claim the admission seat: the {@link WebGate} consulted before every named
+ * route, the fallback, and every upgrade. One owner only — a second
+ * registration throws, because two admission policies cannot compose into a
+ * single decision.
+ *
+ * An ungated server dispatches every request it accepts, so this seat is
+ * what a composition must fill before widening the bind: the shipped Web
+ * composition serves loopback ungated, where the operator at the console is
+ * already the trust boundary, and refuses a non-loopback bind until an
+ * authentication row claims this seat.
+ * @param gate - the admission policy owning refusal responses.
+ * @returns the disposer releasing the seat.
+ */
+registerGate(gate: WebGate): () => void
 
 /**
  * Run an index.html body through the registered taps in registration order

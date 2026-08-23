@@ -26,7 +26,7 @@ export type {
 } from './contract/slots.ts'
 
 /** Required services: the slot registry and the file-explorer Remote namespace. */
-export const inject = ['slots', 'remote', 'remote.fileExplorer', 'terminalPanel', 'surfaceCollapse']
+export const inject = ['slots', 'remote', 'remote.fileExplorer', 'surfaceCoordinator']
 
 /**
  * Register the tree and the two modal entries once their slot declarations
@@ -58,15 +58,11 @@ export function apply(ctx: ClientContext): void {
   // Expose the open-file control face so the conversation can open paths in
   // the in-app preview when the browser and the Host are not the same machine.
   ctx.reflect.provide('fileExplorer', controller)
-  const terminalPanel = ctx.get('terminalPanel') as {
-    close(): void
-    toggle(): void
-  }
-  const surfaceCollapse = ctx.get('surfaceCollapse') as {
+  const surfaceCoordinator = ctx.get('surfaceCoordinator') as {
     subscribe(listener: (action: 'collapse' | 'expand') => void): () => void
   }
-  // Collapse/expand the modals together with the terminal windows.
-  ctx.effect(() => surfaceCollapse.subscribe((action) => {
+  // Collapse/expand the modals together with the other floating surfaces.
+  ctx.effect(() => surfaceCoordinator.subscribe((action) => {
     if (action === 'collapse') controller.collapseModals()
     else controller.expandModals()
   }), 'file-explorer: surface collapse subscription')
@@ -105,9 +101,6 @@ export function apply(ctx: ClientContext): void {
       showFiles: () => { controller.showFiles() },
       showDiff: () => { controller.showDiff() },
       showGitTree: () => { controller.showGitTree() },
-      closeGitTree: () => { controller.closeGitTree() },
-      closeTerminal: () => { terminalPanel.close() },
-      toggleTerminal: () => { terminalPanel.toggle() },
     }) },
     FileExplorerRail,
   ))

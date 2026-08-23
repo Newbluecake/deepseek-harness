@@ -436,7 +436,7 @@ export interface ConnectionConfig {
 }
 ```
 
-Source: [`packages/client/connection/src/index.ts:54`](../packages/client/connection/src/index.ts)
+Source: [`packages/client/connection/src/index.ts:51`](../packages/client/connection/src/index.ts)
 
 <a id="deepseek-aidsh-client-hmr"></a>
 
@@ -897,7 +897,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/host/web-auth/src/index.ts:68`](../packages/host/web-auth/src/index.ts)
+Source: [`packages/host/web-auth/src/index.ts:63`](../packages/host/web-auth/src/index.ts)
 
 <a id="deepseek-aidsh-host-webserver"></a>
 
@@ -913,7 +913,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/host/webserver/src/index.ts:86`](../packages/host/webserver/src/index.ts)
+Source: [`packages/host/webserver/src/index.ts:99`](../packages/host/webserver/src/index.ts)
 
 <a id="deepseek-aidsh-invariants"></a>
 

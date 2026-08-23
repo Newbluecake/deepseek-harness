@@ -715,6 +715,49 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     ],
   },
   {
+    key: 'fileExplorer',
+    summary: 'Read-only data face for the file-explorer UI.',
+    description: 'Read-only data face for the file-explorer UI. It reads the calling session\'s filesystem and runs read-only git commands against that session\'s workspace root; it never writes files or mutates git state.',
+    methods: [
+      {
+        signature: '@Remote(\'listDir\') async listDir(agent: Agent, path: string | null): Promise<ListDirResult>',
+        description: 'List one directory\'s direct children. A `null` path lists the session workspace root; relative paths resolve against it.',
+        parameters: [{ name: 'agent', description: 'exact live Agent resolved from the wire identity.' }, { name: 'path', description: 'absolute or workspace-relative path, or `null` for the root.' }],
+        returns: 'the projected listing.',
+      },
+      {
+        signature: '@Remote(\'readFile\') async readFile(agent: Agent, path: string): Promise<ReadFileResult>',
+        description: 'Read one regular UTF-8 text file for preview.',
+        parameters: [{ name: 'agent', description: 'exact live Agent resolved from the wire identity.' }, { name: 'path', description: 'absolute or workspace-relative path.' }],
+        returns: 'the decoded text.',
+      },
+      {
+        signature: '@Remote(\'gitStatus\') async gitStatus(agent: Agent): Promise<GitStatusResult>',
+        description: 'Discover staged and unstaged changes in the session workspace repository.',
+        parameters: [{ name: 'agent', description: 'exact live Agent resolved from the wire identity.' }],
+        returns: 'the two change groups.',
+      },
+      {
+        signature: '@Remote(\'fileDiff\') async fileDiff(agent: Agent, request: FileDiffRequest): Promise<FileDiffResult>',
+        description: 'Resolve the old/new text pair for one changed file.',
+        parameters: [{ name: 'agent', description: 'exact live Agent resolved from the wire identity.' }, { name: 'request', description: 'path and which change segment to diff.' }],
+        returns: 'the two text sides.',
+      },
+      {
+        signature: '@Remote(\'gitLog\') async gitLog(agent: Agent): Promise<GitLogResult>',
+        description: 'Resolve the commit-history graph across all refs.',
+        parameters: [{ name: 'agent', description: 'exact live Agent resolved from the wire identity.' }],
+        returns: 'the ASCII `git log --graph` output.',
+      },
+      {
+        signature: '@Remote(\'searchFiles\') async searchFiles(agent: Agent, request: SearchFilesRequest): Promise<SearchFilesResult>',
+        description: 'Search the whole workspace for files whose repository-relative path matches a query. Lists the git index plus untracked files, so results cover unexpanded directories and skip `.git` and ignored build output.',
+        parameters: [{ name: 'agent', description: 'exact live Agent resolved from the wire identity.' }, { name: 'request', description: 'the trimmed, lowercased query.' }],
+        returns: 'matching files in path order, capped at the service bound.',
+      },
+    ],
+  },
+  {
     key: 'fileReferences',
     summary: 'Host capability for cancellable file-reference discovery.',
     description: 'Host capability for cancellable file-reference discovery.',
@@ -1994,6 +2037,62 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     ],
   },
   {
+    key: 'terminalWeb',
+    summary: 'Read/write face for interactive browser terminals.',
+    description: 'Read/write face for interactive browser terminals. It spawns one bash PTY per spawn call in the calling session\'s workspace, taps the PTY\'s raw output into forwarded events, and retains a bounded scrollback so a client can re-attach to a still-running session.',
+    methods: [
+      {
+        signature: '@Remote(\'spawn\') async spawn(agent: Agent, request: TerminalWebSpawnRequest): Promise<TerminalWebSpawnResult>',
+        description: 'Spawn one interactive bash terminal in the calling session\'s workspace.',
+        parameters: [{ name: 'agent', description: 'exact live Agent resolved from the wire identity.' }, { name: 'request', description: 'optional display name and initial dimensions.' }],
+        returns: 'the new session\'s identity, pid, and working directory.',
+      },
+      {
+        signature: '@Remote(\'write\') async write(agent: Agent, request: TerminalWebWriteRequest): Promise<void>',
+        description: 'Write raw input (keystrokes, escape sequences) to one session\'s stdin.',
+        parameters: [{ name: 'agent', description: 'exact live Agent resolved from the wire identity.' }, { name: 'request', description: 'target session and raw text.' }],
+      },
+      {
+        signature: '@Remote(\'signal\') async signal(agent: Agent, request: TerminalWebSignalRequest): Promise<void>',
+        description: 'Signal one session\'s foreground process group.',
+        parameters: [{ name: 'agent', description: 'exact live Agent resolved from the wire identity.' }, { name: 'request', description: 'target session and signal.' }],
+      },
+      {
+        signature: '@Remote(\'resize\') resize(agent: Agent, request: TerminalWebResizeRequest): Promise<void>',
+        description: 'Resize one session\'s terminal; full-screen programs see the new size via SIGWINCH.',
+        parameters: [{ name: 'agent', description: 'exact live Agent resolved from the wire identity.' }, { name: 'request', description: 'target session and the new dimensions.' }],
+      },
+      {
+        signature: '@Remote(\'kill\') async kill(agent: Agent, request: TerminalWebKillRequest): Promise<void>',
+        description: 'Close one session and remove it from the registry.',
+        parameters: [{ name: 'agent', description: 'exact live Agent resolved from the wire identity.' }, { name: 'request', description: 'target session.' }],
+      },
+      {
+        signature: '@Remote(\'rename\') rename(agent: Agent, request: TerminalWebRenameRequest): Promise<void>',
+        description: 'Rename one session\'s display name (shown on its tab).',
+        parameters: [{ name: 'agent', description: 'exact live Agent resolved from the wire identity.' }, { name: 'request', description: 'target session and the new name.' }],
+      },
+      {
+        signature: '@Remote(\'list\') list(agent: Agent): Promise<TerminalWebListResult>',
+        description: 'List the calling session\'s live terminals.',
+        parameters: [{ name: 'agent', description: 'exact live Agent resolved from the wire identity.' }],
+        returns: 'the owned sessions in spawn order.',
+      },
+      {
+        signature: '@Remote(\'listAll\') listAll(): Promise<TerminalWebListResult>',
+        description: 'List every live terminal across all owning sessions. Root-scoped (no wire identity): the global Dock reads this to discover terminals from any session. Read/write/signal/kill stay agent-scoped, so opening another session\'s terminal still resolves its owner identity for those calls.',
+        parameters: [],
+        returns: 'all live sessions in global spawn order, each carrying its owner.',
+      },
+      {
+        signature: '@Remote(\'read\') read(agent: Agent, request: TerminalWebReadRequest): Promise<TerminalWebReadResult>',
+        description: 'Read one session\'s retained scrollback and the current output cursor.',
+        parameters: [{ name: 'agent', description: 'exact live Agent resolved from the wire identity.' }, { name: 'request', description: 'target session.' }],
+        returns: 'the bounded scrollback and the sequence to resume from.',
+      },
+    ],
+  },
+  {
     key: 'timer',
     summary: 'Disposable timer helpers mixed into Cordis contexts.',
     description: 'Disposable timer helpers mixed into Cordis contexts.',
@@ -2251,9 +2350,21 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     ],
   },
   {
+    key: 'webAuth',
+    summary: 'Authentication result consumed by the Web transport and admission policy.',
+    description: 'Authentication result consumed by the Web transport and admission policy.',
+    methods: [
+      {
+        signature: 'isAuthenticated: (req: WebAuthenticationRequest) => boolean',
+        description: 'Return true when this request carries a live authenticated principal.',
+        parameters: [],
+      },
+    ],
+  },
+  {
     key: 'webServer',
     summary: 'The browser HTTP carrier service.',
-    description: 'The browser HTTP carrier service. Activation listens immediately. Route registration order does not affect requests because configured named routes must be distinct, and the fallback handler answers anything not yet claimed during startup with 404 until its owner registers. A listen failure rejects initialization, and the boot process reports the failed fiber.',
+    description: 'The browser HTTP carrier service. Activation listens immediately. Route registration order does not affect requests because configured named routes must be distinct, and the fallback handler answers anything not yet claimed during startup with 404 until its owner registers. A listen failure rejects initialization, and the boot process reports the failed fiber.\n\nA non-loopback bind refuses every request and destroys every upgrade while the WebGate seat is empty, so publishing this server to the network without an authentication row serves nothing.',
     methods: [
       {
         signature: 'register(route: WebRoute): () => void',
@@ -2278,6 +2389,12 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         description: 'Register a raw-HTML index transform, the escape hatch for markup no IndexInjection row expresses: renderIndex applies taps in registration order after rendering the structured rows.',
         parameters: [{ name: 'transform', description: 'pure html-to-html function.' }],
         returns: 'the disposer removing the transform.',
+      },
+      {
+        signature: 'registerGate(gate: WebGate): () => void',
+        description: 'Claim the admission seat: the WebGate consulted before every named route, the fallback, and every upgrade. One owner only — a second registration throws, because two admission policies cannot compose into a single decision.\n\nAn ungated server dispatches every request it accepts, so this seat is what a composition must fill before widening the bind: the shipped Web composition serves loopback ungated, where the operator at the console is already the trust boundary, and refuses a non-loopback bind until an authentication row claims this seat.',
+        parameters: [{ name: 'gate', description: 'the admission policy owning refusal responses.' }],
+        returns: 'the disposer releasing the seat.',
       },
       {
         signature: 'applyIndexTaps(html: string): string',
@@ -2732,6 +2849,22 @@ export const EVENT_API: readonly EventApiEntry[] = [
     summary: 'Emitted when any prompt provider changes.',
     description: 'Emitted when any prompt provider changes. This registry notification is unfiltered because a global change affects every scope.',
     parameters: [],
+  },
+  {
+    name: 'terminal/exit',
+    mode: 'emit',
+    signature: '\'terminal/exit\'(payload: { sessionId: string; exitCode: number | null }): void',
+    summary: 'A terminal session\'s process exited.',
+    description: 'A terminal session\'s process exited.',
+    parameters: [{ name: 'payload', description: '.exitCode - process exit code, or `null` when killed by signal.' }],
+  },
+  {
+    name: 'terminal/output',
+    mode: 'emit',
+    signature: '\'terminal/output\'(payload: { sessionId: string; data: string; seq: number }): void',
+    summary: 'One raw output chunk from a live terminal PTY.',
+    description: 'One raw output chunk from a live terminal PTY. Forwarded to consumers verbatim; `data` carries ANSI escape sequences for xterm.js to render.',
+    parameters: [{ name: 'payload', description: '.seq - per-session monotonic output sequence number.' }],
   },
   {
     name: 'tools/change',
@@ -3342,6 +3475,18 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface FileDiff {\n    path: string;\n    oldText: string | null;\n    newText: string;\n}',
   },
   {
+    name: 'FileDiffRequest',
+    declaration: 'export interface FileDiffRequest {\n    path: string;\n    scope: \'staged\' | \'unstaged\';\n}',
+  },
+  {
+    name: 'FileDiffResult',
+    declaration: 'export interface FileDiffResult {\n    path: string;\n    scope: \'staged\' | \'unstaged\';\n    oldText: string;\n    newText: string;\n}',
+  },
+  {
+    name: 'FileExplorerEntry',
+    declaration: 'export interface FileExplorerEntry {\n    name: string;\n    type: \'file\' | \'directory\' | \'other\';\n    path: string;\n    size: number | null;\n}',
+  },
+  {
     name: 'FileLocation',
     declaration: 'export interface FileLocation {\n    path: string;\n    line?: number;\n}',
   },
@@ -3412,6 +3557,26 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'GenericResultView',
     declaration: 'export interface GenericResultView {\n    card: \'generic\';\n    title?: string;\n    content?: ContentBlock[];\n}',
+  },
+  {
+    name: 'GitChange',
+    declaration: 'export interface GitChange {\n    code: string;\n    path: string;\n}',
+  },
+  {
+    name: 'GitLogCommit',
+    declaration: 'export interface GitLogCommit {\n    hash: string;\n    parents: string[];\n    refs: GitLogRef[];\n    author: string;\n    date: string;\n    subject: string;\n}',
+  },
+  {
+    name: 'GitLogRef',
+    declaration: 'export interface GitLogRef {\n    kind: \'head\' | \'branch\' | \'remote\' | \'tag\';\n    name: string;\n}',
+  },
+  {
+    name: 'GitLogResult',
+    declaration: 'export interface GitLogResult {\n    workdir: string;\n    branch: string;\n    commits: GitLogCommit[];\n    truncated: boolean;\n}',
+  },
+  {
+    name: 'GitStatusResult',
+    declaration: 'export interface GitStatusResult {\n    workdir: string;\n    branch: string;\n    staged: GitChange[];\n    unstaged: GitChange[];\n}',
   },
   {
     name: 'GoalActivation',
@@ -3592,6 +3757,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'KvUnitDescriptor',
     declaration: 'export interface KvUnitDescriptor {\n    readonly name: string;\n    readonly version: number;\n    readonly tables: readonly string[];\n    readonly hasGlobal: boolean;\n}',
+  },
+  {
+    name: 'ListDirResult',
+    declaration: 'export interface ListDirResult {\n    path: string;\n    type: \'file\' | \'directory\' | \'other\';\n    entries: FileExplorerEntry[];\n}',
   },
   {
     name: 'LlmAdapter',
@@ -3898,6 +4067,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface ReadFileLine {\n    number: number;\n    text: string;\n}',
   },
   {
+    name: 'ReadFileResult',
+    declaration: 'export interface ReadFileResult {\n    content: string;\n    truncated: boolean;\n}',
+  },
+  {
     name: 'ReadResultView',
     declaration: 'export interface ReadResultView {\n    card: \'read\';\n    title?: string;\n    path: string;\n    offset: number;\n    lines: ReadFileLine[];\n    totalLines: number;\n    lang?: string;\n    content?: ContentBlock[];\n}',
   },
@@ -4042,8 +4215,20 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type ScopeKey = object;',
   },
   {
+    name: 'SearchFileMatch',
+    declaration: 'export interface SearchFileMatch {\n    path: string;\n    name: string;\n}',
+  },
+  {
     name: 'SearchFileMatches',
     declaration: 'export interface SearchFileMatches {\n    path: string;\n    matches: SearchLineMatch[];\n}',
+  },
+  {
+    name: 'SearchFilesRequest',
+    declaration: 'export interface SearchFilesRequest {\n    query: string;\n}',
+  },
+  {
+    name: 'SearchFilesResult',
+    declaration: 'export interface SearchFilesResult {\n    matches: SearchFileMatch[];\n    truncated: boolean;\n}',
   },
   {
     name: 'SearchLineMatch',
@@ -4575,7 +4760,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'SubprocessTerminalHandle',
-    declaration: 'export interface SubprocessTerminalHandle {\n    readonly pid: number;\n    readonly output: Readable;\n    readonly done: Promise<SubprocessOutcome>;\n    write(data: string): Promise<void>;\n    inspectForeground(): Promise<SubprocessTerminalForeground | undefined>;\n    signalForeground(signal: SubprocessTerminalSignal): Promise<number>;\n    terminate(): Promise<void>;\n}',
+    declaration: 'export interface SubprocessTerminalHandle {\n    readonly pid: number;\n    readonly output: Readable;\n    readonly done: Promise<SubprocessOutcome>;\n    write(data: string): Promise<void>;\n    inspectForeground(): Promise<SubprocessTerminalForeground | undefined>;\n    signalForeground(signal: SubprocessTerminalSignal): Promise<number>;\n    resize(cols: number, rows: number): void;\n    terminate(): Promise<void>;\n}',
   },
   {
     name: 'SubprocessTerminalSignal',
@@ -4724,6 +4909,54 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'TerminalWaitReason',
     declaration: 'export type TerminalWaitReason = \'stdin_read\' | \'inferred_idle\' | \'timeout\' | \'session_exit\';',
+  },
+  {
+    name: 'TerminalWebKillRequest',
+    declaration: 'export interface TerminalWebKillRequest {\n    sessionId: string;\n}',
+  },
+  {
+    name: 'TerminalWebListResult',
+    declaration: 'export interface TerminalWebListResult {\n    sessions: TerminalWebSessionInfo[];\n}',
+  },
+  {
+    name: 'TerminalWebReadRequest',
+    declaration: 'export interface TerminalWebReadRequest {\n    sessionId: string;\n}',
+  },
+  {
+    name: 'TerminalWebReadResult',
+    declaration: 'export interface TerminalWebReadResult {\n    text: string;\n    seq: number;\n    truncated: boolean;\n}',
+  },
+  {
+    name: 'TerminalWebRenameRequest',
+    declaration: 'export interface TerminalWebRenameRequest {\n    sessionId: string;\n    name: string;\n}',
+  },
+  {
+    name: 'TerminalWebResizeRequest',
+    declaration: 'export interface TerminalWebResizeRequest {\n    sessionId: string;\n    cols: number;\n    rows: number;\n}',
+  },
+  {
+    name: 'TerminalWebSessionInfo',
+    declaration: 'export interface TerminalWebSessionInfo {\n    sessionId: string;\n    ownerSessionId: SessionId;\n    name: string | null;\n    pid: number;\n    cwd: string;\n    running: boolean;\n}',
+  },
+  {
+    name: 'TerminalWebSignal',
+    declaration: 'export type TerminalWebSignal = \'SIGINT\' | \'SIGTERM\' | \'SIGKILL\' | \'SIGTSTP\' | \'SIGHUP\';',
+  },
+  {
+    name: 'TerminalWebSignalRequest',
+    declaration: 'export interface TerminalWebSignalRequest {\n    sessionId: string;\n    signal: TerminalWebSignal;\n}',
+  },
+  {
+    name: 'TerminalWebSpawnRequest',
+    declaration: 'export interface TerminalWebSpawnRequest {\n    name?: string;\n    cols?: number;\n    rows?: number;\n}',
+  },
+  {
+    name: 'TerminalWebSpawnResult',
+    declaration: 'export interface TerminalWebSpawnResult {\n    sessionId: string;\n    pid: number;\n    cwd: string;\n}',
+  },
+  {
+    name: 'TerminalWebWriteRequest',
+    declaration: 'export interface TerminalWebWriteRequest {\n    sessionId: string;\n    data: string;\n}',
   },
   {
     name: 'TodoItem',
@@ -4938,6 +5171,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface UserQuestionProvider {\n    ask(request: AskUserQuestionRequest): Promise<AskUserQuestionAnswer>;\n}',
   },
   {
+    name: 'WebAuthenticationRequest',
+    declaration: 'export interface WebAuthenticationRequest {\n    headers: IncomingMessage[\'headers\'] | Headers;\n}',
+  },
+  {
     name: 'WebBootEntry',
     declaration: 'export interface WebBootEntry {\n    id: string;\n    url: string;\n    rev: string;\n    inject?: string[];\n    immediately?: boolean;\n    external?: string[];\n}',
   },
@@ -4964,6 +5201,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'WebFetchResultView',
     declaration: 'export interface WebFetchResultView {\n    card: \'web\';\n    kind: \'fetch\';\n    title?: string;\n    url: string;\n    statusCode: number;\n    truncated: boolean;\n}',
+  },
+  {
+    name: 'WebGate',
+    declaration: 'export interface WebGate {\n    http: (req: IncomingMessage, res: ServerResponse) => boolean | Promise<boolean>;\n    upgrade: (req: IncomingMessage) => boolean | Promise<boolean>;\n}',
   },
   {
     name: 'WebResultView',

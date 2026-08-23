@@ -20,6 +20,31 @@ export type PanelActions = BoundActions<ReturnType<typeof createLayoutStore>>
  * attachPanels wiring hook stays on the concrete class (root-entry assembly
  * only).
  */
+/** Collapse/expand action broadcast shared by floating-surface plugins. */
+export type SurfaceAction = 'collapse' | 'expand'
+
+/** Cross-plugin coordinator for surfaces that respond to global collapse commands. */
+export class SurfaceCoordinator {
+  #listeners = new Set<(action: SurfaceAction) => void>()
+
+  /**
+   * Subscribe one surface to global collapse and expand commands.
+   * @param listener - callback invoked with the requested surface action.
+   * @returns disposer that removes the listener.
+   */
+  subscribe(listener: (action: SurfaceAction) => void): () => void {
+    this.#listeners.add(listener)
+    return () => { this.#listeners.delete(listener) }
+  }
+
+  /** Ask every registered surface to collapse. */
+  collapseAll(): void { for (const listener of this.#listeners) listener('collapse') }
+
+  /** Ask every registered surface to expand. */
+  expandAll(): void { for (const listener of this.#listeners) listener('expand') }
+}
+
+/** Public panel-transition face provided by the layout plugin. */
 export interface ILayout {
   /** Toggle the sidebar panel (closed ⟷ contract default width). */
   toggleSidebar(): void

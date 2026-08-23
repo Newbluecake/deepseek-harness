@@ -14,16 +14,33 @@ function basename(path: string): string {
 export class FileExplorerController {
   #actions: FileExplorerActions | undefined
 
-  /** Attach the current session's viewing actions. */
+  /**
+   * Attach the current session's viewing actions.
+   * @param actions - store actions for the currently rendered session entry.
+   */
   attach(actions: FileExplorerActions): void { this.#actions = actions }
+
+  /** Show the file list panel. */
   showFiles(): void { const actions = this.#require(); actions.setGitTreeOpen(false); actions.setPanel('files') }
+
+  /** Show the changed-file diff panel. */
   showDiff(): void { const actions = this.#require(); actions.setGitTreeOpen(false); actions.setPanel('diff') }
+
+  /** Show the Git history panel. */
   showGitTree(): void { const actions = this.#require(); actions.setGitTreeOpen(false); actions.setPanel('tree') }
+
+  /** Close the Git history modal. */
   closeGitTree(): void { this.#require().setGitTreeOpen(false) }
+
+  /** Minimize the file preview modals. */
   collapseModals(): void { this.#require().setModalsMinimized(true) }
+
+  /** Restore the file preview modals. */
   expandModals(): void { this.#require().setModalsMinimized(false) }
 
-  /** Open one file in the in-app preview, showing the files panel. */
+  /** Open one file in the in-app preview, showing the files panel.
+   * @param path - absolute or workspace-relative file path.
+   */
   openFile(path: string): void {
     const actions = this.#require()
     actions.setPanel('files')

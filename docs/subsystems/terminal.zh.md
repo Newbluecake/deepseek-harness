@@ -181,4 +181,125 @@ list(owner: Agent): TerminalSessionSnapshot[]
 Types: [Agent](core.zh.md)
 
 Source: [`packages/terminal/terminal/src/index.ts`](../../packages/terminal/terminal/src/index.ts)
+
+<a id="ctxterminalweb--terminalwebservice"></a>
+
+### `ctx.terminalWeb` — `TerminalWebService`
+
+Read/write face for interactive browser terminals. It spawns one bash PTY per spawn call in the calling session's workspace, taps the PTY's raw output into forwarded events, and retains a bounded scrollback so a client can re-attach to a still-running session.
+
+```ts cordis-catalog
+/**
+ * Spawn one interactive bash terminal in the calling session's workspace.
+ * @param agent - exact live Agent resolved from the wire identity.
+ * @param request - optional display name and initial dimensions.
+ * @returns the new session's identity, pid, and working directory.
+ */
+@Remote('spawn') async spawn(agent: Agent, request: TerminalWebSpawnRequest): Promise<TerminalWebSpawnResult>
+
+/**
+ * Write raw input (keystrokes, escape sequences) to one session's stdin.
+ * @param agent - exact live Agent resolved from the wire identity.
+ * @param request - target session and raw text.
+ */
+@Remote('write') async write(agent: Agent, request: TerminalWebWriteRequest): Promise<void>
+
+/**
+ * Signal one session's foreground process group.
+ * @param agent - exact live Agent resolved from the wire identity.
+ * @param request - target session and signal.
+ */
+@Remote('signal') async signal(agent: Agent, request: TerminalWebSignalRequest): Promise<void>
+
+/**
+ * Resize one session's terminal; full-screen programs see the new size via SIGWINCH.
+ * @param agent - exact live Agent resolved from the wire identity.
+ * @param request - target session and the new dimensions.
+ */
+@Remote('resize') resize(agent: Agent, request: TerminalWebResizeRequest): Promise<void>
+
+/**
+ * Close one session and remove it from the registry.
+ * @param agent - exact live Agent resolved from the wire identity.
+ * @param request - target session.
+ */
+@Remote('kill') async kill(agent: Agent, request: TerminalWebKillRequest): Promise<void>
+
+/**
+ * Rename one session's display name (shown on its tab).
+ * @param agent - exact live Agent resolved from the wire identity.
+ * @param request - target session and the new name.
+ */
+@Remote('rename') rename(agent: Agent, request: TerminalWebRenameRequest): Promise<void>
+
+/**
+ * List the calling session's live terminals.
+ * @param agent - exact live Agent resolved from the wire identity.
+ * @returns the owned sessions in spawn order.
+ */
+@Remote('list') list(agent: Agent): Promise<TerminalWebListResult>
+
+/**
+ * List every live terminal across all owning sessions. Root-scoped (no
+ * wire identity): the global Dock reads this to discover terminals from any
+ * session. Read/write/signal/kill stay agent-scoped, so opening another
+ * session's terminal still resolves its owner identity for those calls.
+ * @returns all live sessions in global spawn order, each carrying its owner.
+ */
+@Remote('listAll') listAll(): Promise<TerminalWebListResult>
+
+/**
+ * Read one session's retained scrollback and the current output cursor.
+ * @param agent - exact live Agent resolved from the wire identity.
+ * @param request - target session.
+ * @returns the bounded scrollback and the sequence to resume from.
+ */
+@Remote('read') read(agent: Agent, request: TerminalWebReadRequest): Promise<TerminalWebReadResult>
+```
+
+Types: [Agent](core.zh.md)
+
+Source: [`packages/terminal/terminal-web/src/index.ts`](../../packages/terminal/terminal-web/src/index.ts)
+
+<a id="terminal-events"></a>
+
+### `terminal/*` events
+
+<a id="terminalexit--emit"></a>
+
+#### `terminal/exit` — emit
+
+A terminal session's process exited.
+
+```ts cordis-catalog
+/**
+ * A terminal session's process exited.
+ * @param payload.sessionId - terminal session that exited.
+ * @param payload.exitCode - process exit code, or `null` when killed by signal.
+ * @mode emit
+ */
+'terminal/exit'(payload: { sessionId: string; exitCode: number | null }): void
+```
+
+Source: [`packages/terminal/terminal-web/src/types.ts`](../../packages/terminal/terminal-web/src/types.ts)
+
+<a id="terminaloutput--emit"></a>
+
+#### `terminal/output` — emit
+
+One raw output chunk from a live terminal PTY. Forwarded to consumers verbatim; `data` carries ANSI escape sequences for xterm.js to render.
+
+```ts cordis-catalog
+/**
+ * One raw output chunk from a live terminal PTY. Forwarded to consumers
+ * verbatim; `data` carries ANSI escape sequences for xterm.js to render.
+ * @param payload.sessionId - terminal session the chunk came from.
+ * @param payload.data - raw UTF-8 output text.
+ * @param payload.seq - per-session monotonic output sequence number.
+ * @mode emit
+ */
+'terminal/output'(payload: { sessionId: string; data: string; seq: number }): void
+```
+
+Source: [`packages/terminal/terminal-web/src/types.ts`](../../packages/terminal/terminal-web/src/types.ts)
 <!-- END GENERATED cordis-surface -->
