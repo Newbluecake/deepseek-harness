@@ -123,9 +123,6 @@ export function TerminalWindow({
   const resize = useRef<
     { pointerId: number; dir: ResizeDir; startX: number; startY: number; x: number; y: number; width: number; height: number } | null
   >(null)
-  const winRef = useRef(win)
-  winRef.current = win
-
   const clampX = (x: number): number => Math.min(window.innerWidth - EDGE, Math.max(EDGE - win.width, x))
   const clampY = (y: number): number => Math.min(window.innerHeight - EDGE, Math.max(0, y))
 
@@ -221,15 +218,6 @@ export function TerminalWindow({
           readTerminal={readTerminal}
           resizeTerminal={resizeTerminal}
           onTerminalOutput={onTerminalOutput}
-          onFitDelta={(delta) => {
-            if (Math.abs(delta) < 1) return
-            // A live edge drag owns the geometry: snapping the height here
-            // would drift the very edge a north drag is holding in place.
-            if (resize.current !== null) return
-            const current = winRef.current
-            if (current.maximized) return
-            onResize(current.terminalId, current.width, current.height + delta)
-          }}
         />
       </div>
       {/* Pointer-only affordances: keyboard users resize through maximize, so

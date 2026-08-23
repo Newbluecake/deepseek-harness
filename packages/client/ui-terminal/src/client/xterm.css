@@ -101,6 +101,11 @@
     left: 0;
     top: 0;
     bottom: 0;
+    scrollbar-width: none;
+}
+
+.xterm .xterm-viewport::-webkit-scrollbar {
+    display: none;
 }
 
 .xterm .xterm-screen {
