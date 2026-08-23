@@ -22,6 +22,8 @@ export interface TerminalViewProps {
   terminalId: string
   /** Whether this tab is the focused one. */
   active: boolean
+  /** Monotonic focus token; a changed value transfers keyboard focus to xterm. */
+  focusToken: number
   /** Injected terminal actions (spawn/write/read/subscribe faces). */
   writeTerminal: TerminalInjected['writeTerminal']
   readTerminal: TerminalInjected['readTerminal']
@@ -35,9 +37,10 @@ export interface TerminalViewProps {
  * @returns the emulator container element.
  */
 export function TerminalView({
-  agentSessionId, terminalId, active, writeTerminal, readTerminal, resizeTerminal, onTerminalOutput,
+  agentSessionId, terminalId, active, focusToken, writeTerminal, readTerminal, resizeTerminal, onTerminalOutput,
 }: TerminalViewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const terminalRef = useRef<Terminal | undefined>(undefined)
 
   useEffect(() => {
     const container = containerRef.current
@@ -53,6 +56,7 @@ export function TerminalView({
     term.loadAddon(fit)
     term.open(container)
     fit.fit()
+    terminalRef.current = term
 
     const viewport = container.querySelector<HTMLElement>('.xterm-viewport')
     let scrollIndicatorTimer: ReturnType<typeof setTimeout> | undefined
@@ -116,6 +120,7 @@ export function TerminalView({
     observer.observe(container)
 
     return () => {
+      terminalRef.current = undefined
       if (resizeTimer !== undefined) clearTimeout(resizeTimer)
       if (scrollIndicatorTimer !== undefined) clearTimeout(scrollIndicatorTimer)
       viewport?.removeEventListener('scroll', showScrollIndicator)
@@ -125,6 +130,10 @@ export function TerminalView({
       term.dispose()
     }
   }, [agentSessionId, terminalId, writeTerminal, readTerminal, resizeTerminal, onTerminalOutput])
+
+  useEffect(() => {
+    terminalRef.current?.focus()
+  }, [focusToken])
 
   return <div ref={containerRef} className={active ? css.term : `${css.term} ${css.termHidden}`} />
 }

@@ -214,6 +214,7 @@ export function TerminalWindow({
           agentSessionId={win.ownerSessionId}
           terminalId={win.terminalId}
           active
+          focusToken={win.z}
           writeTerminal={writeTerminal}
           readTerminal={readTerminal}
           resizeTerminal={resizeTerminal}
