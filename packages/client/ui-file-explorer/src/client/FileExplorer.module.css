@@ -164,6 +164,10 @@
   flex: 1;
   min-height: 0;
   overflow: auto;
+  /* Elevated surface: rebind scrollbars to the layer-2 aliases so thumbs stay
+     visible against the layer-1 list background. */
+  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
+  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
   padding: 3px 0;
   border: 1px solid var(--dsw-alias-border-l1);
   border-radius: 10px;

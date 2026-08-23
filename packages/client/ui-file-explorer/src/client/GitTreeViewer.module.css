@@ -27,6 +27,10 @@
 
 .card {
   background: var(--dsw-alias-bg-layer-1);
+  /* Elevated surface: rebind scrollbars to the layer-2 aliases so thumbs stay
+     visible against the layer-1 card background. */
+  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
+  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
   border: 1px solid var(--dsw-alias-border-l1);
   border-radius: 12px;
   width: min(92vw, 1200px);
