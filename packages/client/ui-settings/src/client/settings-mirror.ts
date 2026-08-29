@@ -9,10 +9,24 @@
  * through {@link SettingsDescribeMirror.acceptView}.
  */
 
-import type { IApiClient, SettingsNamespaceView } from '@deepseek-ai/dsh-api-remotes/client'
-import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
+import type { ClientRemote, SettingsNamespaceView } from '@deepseek-ai/dsh-api-remotes/client'
+import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
 
-type SettingsFace = Pick<IApiClient, 'settings'>
+/**
+ * The settings Remote methods browser configuration surfaces may reach: the
+ * redacted read plus merge, replacement, and path-addressed writes.
+ * Named once here so the consumers share one face instead of each re-deriving
+ * it from the namespace.
+ */
+export type SettingsRemote = Pick<ClientRemote['settings'], 'describe' | 'update' | 'replace' | 'mutate'>
+
+/** Wire face carrying the settings Remote namespace. */
+export interface SettingsWireFace {
+  /** The settings Remote namespace. */
+  settings: SettingsRemote
+}
+
+type SettingsFace = SettingsWireFace
 
 /** The full `settings.describe` answer the mirror serves. */
 export interface SettingsDescribeView {
@@ -27,11 +41,9 @@ export interface SettingsDescribeView {
 /** Mirror state every derived settings surface renders from. */
 export interface SettingsMirrorSnapshot {
   /**
-   * `unavailable` is the terminal refused state: the server's privileged
-   * fence answered a read 403, so this caller has no settings plane at all.
-   * `ready` persists across later failed refreshes (the held view keeps
-   * serving); `idle` means no answer is held and no read is running, so
-   * `ensure` will start one.
+   * `unavailable` is the terminal non-loopback state; `ready` persists across
+   * later failed refreshes (the held view keeps serving); `idle` means no
+   * answer is held and no read is running, so `ensure` will start one.
    */
   status: 'idle' | 'loading' | 'ready' | 'unavailable'
   /** The last good answer; undefined until the first success. */
@@ -69,15 +81,6 @@ export interface SettingsDescribeFace {
 }
 
 /**
- * Whether a read failure is the carrier's privileged-method fence refusing
- * the request outright (plain-text 403 before any RPC envelope) rather than
- * an application-level settings error, which arrives as a structured result.
- */
-function isFenceRefusal(failure: string): boolean {
-  return failure.includes('HTTP 403')
-}
-
-/**
  * Serializes every Host `settings.describe` read behind one snapshot store.
  * Concurrent {@link load} calls fold into the in-flight read plus one rerun,
  * so an invalidation arriving mid-read is never lost and never duplicated.
@@ -90,10 +93,14 @@ export class SettingsDescribeMirror implements SettingsDescribeFace {
 
   /**
    * @param api - settings wire face.
+   * @param persistence - client-selected Host persistence; non-loopback pages may remain process-local.
    */
-  constructor(private readonly api: SettingsFace) {
+  constructor(
+    private readonly api: SettingsFace,
+    private readonly persistence: 'host' | 'memory' = 'host',
+  ) {
     this.store = createSnapshotStore<SettingsMirrorSnapshot>({
-      status: 'idle',
+      status: persistence === 'host' ? 'idle' : 'unavailable',
       view: undefined,
       error: null,
     })
@@ -119,12 +126,7 @@ export class SettingsDescribeMirror implements SettingsDescribeFace {
    * @returns settlement after this call's freshness is reflected.
    */
   load(): Promise<void> {
-    // A connection reset re-probes a terminally refused caller: the refusal
-    // was that generation's fence answer, and a new connection deserves a
-    // fresh one.
-    if (this.getSnapshot().status === 'unavailable') {
-      this.store.set({ status: 'idle', view: undefined, error: null })
-    }
+    if (this.persistence === 'memory') return Promise.resolve()
     if (this.inFlight !== undefined) {
       this.rerun = true
       return this.inFlight
@@ -142,7 +144,7 @@ export class SettingsDescribeMirror implements SettingsDescribeFace {
    * @returns settlement of the current or newly started read, if any.
    */
   ensure(): Promise<void> {
-    if (this.getSnapshot().status === 'unavailable') return Promise.resolve()
+    if (this.persistence === 'memory') return Promise.resolve()
     if (this.inFlight !== undefined) return this.inFlight
     if (this.getSnapshot().status === 'idle') return this.load()
     return Promise.resolve()
@@ -192,10 +194,10 @@ export class SettingsDescribeMirror implements SettingsDescribeFace {
         const generation = ++this.generation
         let outcome: { view: SettingsDescribeView } | { failure: string }
         try {
-          const response = await this.api.settings.describe({})
-          outcome = response.result.ok
-            ? { view: response.result.value }
-            : { failure: response.result.error.message }
+          const response = await this.api.settings.describe()
+          outcome = response.ok
+            ? { view: response.value }
+            : { failure: response.error.message }
         } catch (error) {
           outcome = { failure: error instanceof Error ? error.message : String(error) }
         }
@@ -203,12 +205,6 @@ export class SettingsDescribeMirror implements SettingsDescribeFace {
         if (generation !== this.generation) continue
         if ('view' in outcome) {
           this.store.set({ status: 'ready', view: outcome.view, error: null })
-        } else if (isFenceRefusal(outcome.failure) && this.store.getSnapshot().view === undefined) {
-          // The privileged fence refused before any RPC ran (the transport
-          // raises HTTP 403 without an envelope): no settings plane exists for
-          // this caller, so settle terminally instead of retrying a refusal
-          // that cannot change within the connection.
-          this.store.set({ status: 'unavailable', view: undefined, error: outcome.failure })
         } else {
           const held = this.store.getSnapshot()
           // No answer yet: fall back to idle so `ensure` retries; with one, the

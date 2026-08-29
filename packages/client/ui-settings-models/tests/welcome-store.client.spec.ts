@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { RpcResponse } from '@deepseek-ai/dsh-api-remotes/client'
 import { Context } from '@deepseek-ai/cordis'
 import { SettingsSchemaService } from '@deepseek-ai/dsh-client-ui-settings/src/client/schema.ts'
 import { SettingsDescribeMirror } from '@deepseek-ai/dsh-client-ui-settings/src/client/settings-mirror.ts'
@@ -11,9 +10,9 @@ import {
 
 const schemaService = new SettingsSchemaService(new Context())
 
-let rpc = 0
-function ok<T>(value: T): RpcResponse<T> {
-  return { rpcId: `welcome-${rpc++}` as never, result: { ok: true, value } }
+/** The settings namespace answers over the Remote carrier, which has no envelope. */
+function ok<T>(value: T) {
+  return { ok: true as const, value }
 }
 
 function namespace(value: unknown = {}, revision = 0) {
@@ -34,34 +33,33 @@ function acknowledgedNamespace(version: string, revision = 1) {
 /** The welcome store over a real mirror-derived scope and a fake wire. */
 function buildWelcome(
   api: { describe?: ReturnType<typeof vi.fn>; mutate?: ReturnType<typeof vi.fn> },
+  persistence: 'host' | 'memory' = 'host',
 ) {
   const wire = { settings: api } as never
-  const mirror = new SettingsDescribeMirror(wire)
+  const mirror = new SettingsDescribeMirror(wire, persistence)
   const scope = new SettingsScopeController(
     wire,
     { namespace: WELCOME_NOTICE_SETTINGS_NAMESPACE, decode: decodeWelcomeSection },
     mirror,
+    persistence,
     schemaService,
   )
   return { mirror, controller: new WelcomeNoticeStore(scope) }
 }
 
 describe('WelcomeNoticeStore', () => {
-  it('acknowledges in memory when the fence refuses the settings plane', async () => {
+  it('acknowledges in memory while Host settings persistence is disabled', async () => {
     const describeCall = vi.fn()
-      .mockRejectedValue(new Error('transport failure for /api/settings.describe: HTTP 403'))
     const mutate = vi.fn()
-    const { mirror, controller } = buildWelcome({ describe: describeCall, mutate })
+    const { controller } = buildWelcome({ describe: describeCall, mutate }, 'memory')
 
-    await mirror.load()
     await controller.load()
     expect(controller.store.getSnapshot()).toEqual({ status: 'ready', acknowledged: false, error: null })
     await expect(controller.acknowledge()).resolves.toBe(true)
     expect(controller.store.getSnapshot()).toEqual({ status: 'ready', acknowledged: true, error: null })
     await controller.load()
     expect(controller.store.getSnapshot()).toEqual({ status: 'ready', acknowledged: true, error: null })
-    // The one probe read settled the mode; no write ever reaches the wire.
-    expect(describeCall).toHaveBeenCalledTimes(1)
+    expect(describeCall).not.toHaveBeenCalled()
     expect(mutate).not.toHaveBeenCalled()
   })
 
@@ -92,11 +90,11 @@ describe('WelcomeNoticeStore', () => {
     await mirror.load()
     await controller.load()
     await expect(controller.acknowledge()).resolves.toBe(true)
-    expect(mutate).toHaveBeenCalledWith({
-      ns: WELCOME_NOTICE_SETTINGS_NAMESPACE,
-      ops: [{ op: 'set', path: [WELCOME_NOTICE_ACK_FIELD], value: WELCOME_NOTICE_VERSION }],
-      expectedRevision: 3,
-    })
+    expect(mutate).toHaveBeenCalledWith(
+      WELCOME_NOTICE_SETTINGS_NAMESPACE,
+      [{ op: 'set', path: [WELCOME_NOTICE_ACK_FIELD], value: WELCOME_NOTICE_VERSION }],
+      3,
+    )
     expect(controller.store.getSnapshot()).toMatchObject({ status: 'ready', acknowledged: true })
     // The write answer folded into the mirror; no re-read followed.
     expect(describeCall).toHaveBeenCalledTimes(1)

@@ -7,7 +7,7 @@
  * Feature-owned rows and sections stay with their features.
  * Export discipline: packages/client/AGENTS.md.
  */
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-api-remotes/client'
 import { resolveSlotLabel } from '@deepseek-ai/dsh-client-ui-slots'
 // Type-only: the settings slot declarations plus the ctx.settingsScope Context
@@ -16,6 +16,8 @@ import { resolveSlotLabel } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 // Type-only: pulls ctx.locale into this program.
 import type {} from '@deepseek-ai/dsh-client-locale/client'
+import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
+import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type {
   SettingsOnboardingStep, SettingsRootInjected, SettingsSectionRow,
 } from './shell-contract.ts'
@@ -53,7 +55,7 @@ const NS = 'settings'
  * ui-settings' apply, whose activation order relative to this one is NOT
  * constrained; registrations depend on their slots through `slots.inject()`.
  */
-export const inject = ['slots', 'locale', 'connection', 'settingsScope']
+export const inject = ['slots', 'locale', 'connection', 'remote', 'remote.settings', 'settingsScope']
 
 /**
  * Register the `settings` dictionaries, the chrome content, and the General
@@ -68,13 +70,17 @@ export function apply(ctx: ClientContext): void {
   // locale/change re-registration wiring.
   const t = ctx.locale.bind(NS)
   const connection = ctx.get('connection') as ConnectionHandle
-  // The action follows the settings plane's reachability, settled by the
-  // shared mirror's probe of the server fence — never the page origin: a
-  // fence-refused caller has no settings document to open, while an
-  // authenticated remote operator holds the loopback console's authority.
-  const describeFace = ctx.settingsScope.describe()
-  const documentController = new SettingsDocumentStore(connection.api, describeFace)
-  ctx.effect(() => () => { documentController.dispose() }, 'ui-settings-general: document action directory')
+  // The shared SettingsScope mirror updates after document commits and reconnects.
+  const documentController = connection.isLoopback
+    ? new SettingsDocumentStore(ctx.remote, ctx.settingsScope.describe())
+    : undefined
+  const documentInjected = documentController === undefined
+    ? undefined
+    : (): SettingsDocumentActionInjected => ({
+      controller: documentController,
+      hooks: { snapshot: documentController.store },
+    })
+  ctx.effect(() => () => { documentController?.dispose() }, 'ui-settings-general: document action directory')
   // The settings shell: this package occupies the sidebar-owned hole and
   // declares the settings slots. Ledger → nav-row projection as an observable
   // source (uSES contract: getSnapshot returns the cached rows until the
@@ -150,29 +156,15 @@ export function apply(ctx: ClientContext): void {
     ctx.slots.register({ name: 'settings.trigger', locale: NS }, TriggerContent))
   ctx.slots.inject('settings.header', () =>
     ctx.slots.register({ name: 'settings.header', locale: NS }, HeaderContent))
-  ctx.effect(() => {
-    let injection: (() => void) | undefined
-    const reconcile = (): void => {
-      if (describeFace.getSnapshot().status === 'unavailable') {
-        injection?.()
-        injection = undefined
-        return
-      }
-      injection ??= ctx.slots.inject('settings.action', () => ctx.slots.register({
-        name: 'settings.action',
-        id: 'open-document',
-        order: 0,
-        locale: NS,
-        inject: (): SettingsDocumentActionInjected => ({
-          controller: documentController,
-          hooks: { snapshot: documentController.store },
-        }),
-      }, SettingsDocumentAction))
-    }
-    const unsubscribe = describeFace.subscribe(reconcile)
-    reconcile()
-    return () => { unsubscribe(); injection?.() }
-  }, 'ui-settings-general: document action registration')
+  if (documentInjected !== undefined) {
+    ctx.slots.inject('settings.action', () => ctx.slots.register({
+      name: 'settings.action',
+      id: 'open-document',
+      order: 0,
+      locale: NS,
+      inject: documentInjected,
+    }, SettingsDocumentAction))
+  }
   ctx.slots.inject('settings.close', () =>
     ctx.slots.register({ name: 'settings.close', locale: NS }, CloseLabel))
   ctx.slots.inject('settings.section', () => ctx.slots.register({
