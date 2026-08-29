@@ -59,6 +59,12 @@
     },
     {
       "path": "../../typert/protocol"
+    },
+    {
+      "path": "../../terminal/terminal-web"
+    },
+    {
+      "path": "../../fs/file-explorer"
     }
   ]
 }

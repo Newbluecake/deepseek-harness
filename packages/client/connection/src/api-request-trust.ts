@@ -22,10 +22,13 @@ import { isLoopbackHostname } from './loopback-hostname.ts'
 
 /** The request facts the fence reads from either HTTP representation. */
 interface ApiTrustRequest {
-  headers: IncomingHttpHeaders | Headers
+  headers: IncomingHttpHeaders | Headers | Readonly<Record<string, string | readonly string[] | undefined>>
 }
 
-function header(headers: IncomingHttpHeaders | Headers, name: string): string | undefined {
+function header(
+  headers: IncomingHttpHeaders | Headers | Readonly<Record<string, string | readonly string[] | undefined>>,
+  name: string,
+): string | undefined {
   if (headers instanceof Headers) return headers.get(name) ?? undefined
   const value = headers[name]
   return typeof value === 'string' ? value : undefined

@@ -6,7 +6,7 @@
  */
 import { cleanup, fireEvent, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { SessionId } from '@deepseek-ai/dsh-client-runtime/client'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { TerminalWindowState } from '../src/client/store.ts'
 import { TerminalWindow, type TerminalWindowProps } from '../src/client/TerminalWindow.tsx'
 

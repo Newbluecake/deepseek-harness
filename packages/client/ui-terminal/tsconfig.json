@@ -15,7 +15,10 @@
       "path": "../../../vendor/cordis"
     },
     {
-      "path": "../runtime"
+      "path": "../store"
+    },
+    {
+      "path": "../ui-renderer"
     },
     {
       "path": "../ui-layout"

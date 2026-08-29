@@ -8,7 +8,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
-import type { SessionId } from '@deepseek-ai/dsh-client-runtime/client'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { TerminalWebSessionInfo } from '@deepseek-ai/dsh-terminal-web/types'
 import type { TerminalPanelProps } from './contract/slots.ts'
 import { TerminalWindow } from './TerminalWindow.tsx'

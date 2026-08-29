@@ -245,7 +245,7 @@ describe('real Loader composition', () => {
     expect(renderIndexInjections('<main>x</main>', [
       { kind: 'script', placement: 'head', text: 'H' },
       { kind: 'script', placement: 'body', text: 'B' },
-    ])).toBe('<script>H</script><main>x</main><script>B</script>')
+    ])).toBe('<script>H</script><main>x</main><script>B</script><script>(globalThis.__DSH_BOOT_READY__ ??= Promise.withResolvers()).resolve()</script>')
   })
 
   it('consults the admission gate before every route, the fallback, and every upgrade', { timeout: 60_000 }, async () => {

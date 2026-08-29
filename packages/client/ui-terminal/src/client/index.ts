@@ -6,10 +6,12 @@
  * read/write calls address the terminal's owning session. Export discipline:
  * packages/client/AGENTS.md.
  */
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import type { Context as ClientContext } from '@deepseek-ai/cordis'
 // Type-only: pulls the generated Remote API and ctx.remote merge through the
 // Client assembly boundary.
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
+import type {} from '@deepseek-ai/dsh-terminal-web/remote'
+import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type { TerminalInjected } from './contract/slots.ts'
 import { createTerminalStore } from './store.ts'
 import { TerminalDock } from './TerminalDock.tsx'

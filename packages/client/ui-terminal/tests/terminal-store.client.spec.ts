@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 /** Terminal Dock store: window geometry, stacking, dock-popup state, and persistence. */
 import { beforeEach, describe, expect, it } from 'vitest'
-import type { SessionId } from '@deepseek-ai/dsh-client-runtime/client'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { createTerminalStore } from '../src/client/store.ts'
 
 const DEFAULTS = { x: 100, y: 120, width: 640, height: 480 }

@@ -25,7 +25,7 @@ import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 // runtime shares below.
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
-import type { SessionId } from '@deepseek-ai/dsh-client-runtime/client'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type {
   FileDiffRequest,
   FileDiffResult,

@@ -8,7 +8,7 @@
 import { useEffect, useLayoutEffect, useRef } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
-import type { SessionId } from '@deepseek-ai/dsh-client-runtime/client'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type {
   TerminalInjected,
   TerminalOutputPayload,

@@ -85,7 +85,10 @@ export function CodeViewer({ sessionId, useStore, actions, readFile }: CodeViewe
   const { ref, zIndex } = useModalFocus(file?.path)
   const [content, setContent] = useState({ loading: false, text: '', truncated: false, error: null as string | null })
   const [markdownMode, setMarkdownMode] = useState<'rendered' | 'raw'>('rendered')
-  const copyLabels = useMemo(() => ({ copyLabel: '复制', copiedLabel: '已复制' }), [])
+  const markdownLabels = useMemo(() => ({
+    code: { copyLabel: '复制', copiedLabel: '已复制' },
+    footnotes: '脚注',
+  }), [])
 
   useEffect(() => {
     if (file === null) { setContent({ loading: false, text: '', truncated: false, error: null }); return }
@@ -108,7 +111,7 @@ export function CodeViewer({ sessionId, useStore, actions, readFile }: CodeViewe
   } else if (content.error !== null) {
     body = <div className={`${css.empty} ${css.error}`}>{content.error}</div>
   } else if (isMarkdown && markdownMode === 'rendered') {
-    body = <div className={css.markdown}><MarkdownText text={content.text} codeLabels={copyLabels} /></div>
+    body = <div className={css.markdown}><MarkdownText text={content.text} labels={markdownLabels} /></div>
   } else {
     body = (
       <pre className={css.pre}>

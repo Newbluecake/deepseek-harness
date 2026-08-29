@@ -75,6 +75,7 @@ function mount(
     api as never,
     { namespace: WELCOME_NOTICE_SETTINGS_NAMESPACE, decode: decodeWelcomeSection },
     mirror,
+    'host',
     schemaService,
   )
   const controller = new WelcomeNoticeStore(scope)

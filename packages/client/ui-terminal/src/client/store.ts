@@ -7,8 +7,8 @@
  * the open windows at their saved positions (the Dock prunes any whose PTY is
  * gone on mount).
  */
-import { defineStore, type EngineStoreHandle } from '@deepseek-ai/dsh-client-runtime/client'
-import type { SessionId } from '@deepseek-ai/dsh-client-runtime/client'
+import { defineStore, type EngineStoreHandle } from '@deepseek-ai/dsh-client-store'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
 
 /** One screen edge a floating terminal can snap to. */
 export type TerminalSnapSide = 'left' | 'right'

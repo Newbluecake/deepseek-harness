@@ -2,7 +2,7 @@
 /** TerminalView focus behavior: raising a window transfers keyboard focus once. */
 import { cleanup, fireEvent, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { SessionId } from '@deepseek-ai/dsh-client-runtime/client'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { TerminalView } from '../src/client/TerminalView.tsx'
 
 const { fakeTerminals } = vi.hoisted(() => ({

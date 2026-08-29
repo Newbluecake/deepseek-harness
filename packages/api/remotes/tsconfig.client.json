@@ -58,6 +58,12 @@
       "path": "../../subagent/subagent"
     },
     {
+      "path": "../../terminal/terminal-web"
+    },
+    {
+      "path": "../../fs/file-explorer"
+    },
+    {
       "path": "../../interaction/user-approval"
     },
     {

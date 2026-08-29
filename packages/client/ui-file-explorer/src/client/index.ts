@@ -7,10 +7,12 @@
  * inject face wrapping `ctx.remote.fileExplorer`. Export discipline:
  * packages/client/AGENTS.md.
  */
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import type { Context as ClientContext } from '@deepseek-ai/cordis'
 // Type-only: pulls the generated Remote API and ctx.remote merge through the
 // Client assembly boundary.
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
+import type {} from '@deepseek-ai/dsh-file-explorer/remote'
+import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type { FileExplorerInjected } from './contract/slots.ts'
 import { createFileExplorerStore } from './store.ts'
 import { FileExplorer } from './FileExplorer.tsx'

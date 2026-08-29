@@ -5,7 +5,7 @@
  * reloads); `apply` passes one handle to every register and the components
  * derive their PropsStore share from the return type.
  */
-import { defineStore, type EngineStoreHandle } from '@deepseek-ai/dsh-client-runtime/client'
+import { defineStore, type EngineStoreHandle } from '@deepseek-ai/dsh-client-store'
 import type { FileDiffRequest, FileExplorerEntry } from '@deepseek-ai/dsh-file-explorer/types'
 
 /** Content shown in the session details column. */
