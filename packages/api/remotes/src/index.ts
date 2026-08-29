@@ -27,6 +27,19 @@ import type {} from '@deepseek-ai/dsh-user-approval'
 import type {} from '@deepseek-ai/dsh-user-questions'
 export type {} from '@deepseek-ai/dsh-api-session-controller/types'
 
+export {
+  ApiRemoteSessionNotFound,
+  ApiRemoteSubagentSessionOwnership,
+  apiRemoteSubagentOwnershipError,
+  createApiRemoteAgentResolver,
+  hasApiRemoteSubagentOwner,
+  inspectApiRemoteSession,
+} from './agent-lookup.ts'
+export type {
+  ApiRemoteAgentOptions,
+  ApiRemoteAgentResult,
+  ApiRemoteLookupError,
+} from './agent-lookup.ts'
 export { API_REMOTE_FORWARDED_EVENTS } from './remote-events.ts'
 export type { ApiRemoteForwardedEvent } from './types.ts'
 
