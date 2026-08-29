@@ -8,7 +8,6 @@
  * Export discipline: packages/client/AGENTS.md.
  */
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
-import type { ConnectionHandle } from '@deepseek-ai/dsh-api-remotes/client'
 import { resolveSlotLabel } from '@deepseek-ai/dsh-client-ui-slots'
 // Type-only: the settings slot declarations plus the ctx.settingsScope Context
 // merge. Cross-plugin collaboration goes through the service, never a value
@@ -69,18 +68,11 @@ export function apply(ctx: ClientContext): void {
   // seat, and the nav label is a thunk the owner resolves per render — no
   // locale/change re-registration wiring.
   const t = ctx.locale.bind(NS)
-  const connection = ctx.get('connection') as ConnectionHandle
-  // The shared SettingsScope mirror updates after document commits and reconnects.
-  const documentController = connection.isLoopback
-    ? new SettingsDocumentStore(ctx.remote, ctx.settingsScope.describe())
-    : undefined
-  const documentInjected = documentController === undefined
-    ? undefined
-    : (): SettingsDocumentActionInjected => ({
-      controller: documentController,
-      hooks: { snapshot: documentController.store },
-    })
-  ctx.effect(() => () => { documentController?.dispose() }, 'ui-settings-general: document action directory')
+  // The action follows the settings plane's reachability, settled by the
+  // shared mirror's probe of the server fence rather than the page origin.
+  const describeFace = ctx.settingsScope.describe()
+  const documentController = new SettingsDocumentStore(ctx.remote, describeFace)
+  ctx.effect(() => () => { documentController.dispose() }, 'ui-settings-general: document action directory')
   // The settings shell: this package occupies the sidebar-owned hole and
   // declares the settings slots. Ledger → nav-row projection as an observable
   // source (uSES contract: getSnapshot returns the cached rows until the
@@ -156,15 +148,29 @@ export function apply(ctx: ClientContext): void {
     ctx.slots.register({ name: 'settings.trigger', locale: NS }, TriggerContent))
   ctx.slots.inject('settings.header', () =>
     ctx.slots.register({ name: 'settings.header', locale: NS }, HeaderContent))
-  if (documentInjected !== undefined) {
-    ctx.slots.inject('settings.action', () => ctx.slots.register({
-      name: 'settings.action',
-      id: 'open-document',
-      order: 0,
-      locale: NS,
-      inject: documentInjected,
-    }, SettingsDocumentAction))
-  }
+  ctx.effect(() => {
+    let injection: (() => void) | undefined
+    const reconcile = (): void => {
+      if (describeFace.getSnapshot().status === 'unavailable') {
+        injection?.()
+        injection = undefined
+        return
+      }
+      injection ??= ctx.slots.inject('settings.action', () => ctx.slots.register({
+        name: 'settings.action',
+        id: 'open-document',
+        order: 0,
+        locale: NS,
+        inject: (): SettingsDocumentActionInjected => ({
+          controller: documentController,
+          hooks: { snapshot: documentController.store },
+        }),
+      }, SettingsDocumentAction))
+    }
+    const unsubscribe = describeFace.subscribe(reconcile)
+    reconcile()
+    return () => { unsubscribe(); injection?.() }
+  }, 'ui-settings-general: document action registration')
   ctx.slots.inject('settings.close', () =>
     ctx.slots.register({ name: 'settings.close', locale: NS }, CloseLabel))
   ctx.slots.inject('settings.section', () => ctx.slots.register({

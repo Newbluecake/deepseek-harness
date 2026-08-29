@@ -94,7 +94,7 @@ None; this package neither assembles nor sends a provider request.
 
 These limits define where the settings transport cannot reach; they are current package constraints.
 
-- **Non-loopback pages get no durable settings** — this Client keeps Host persistence disabled there, so a scope starts `unavailable` and never crosses the wire; every row it backs is inert even though Connection authentication covers the API.
+- **Fence-refused callers get no durable settings** — the settings RPCs sit in the privileged set, so the mirror's first `settings.describe` doubles as a probe: a plain 403 settles the mirror terminally `unavailable` and every scope derived from it to memory mode (process-local, no wire writes), while a caller the fence admits — loopback or an authenticated remote session — reads and writes the Host document like the console. A connection reset re-probes.
 
 <a id="dev-note"></a>
 ### Dev Note

@@ -41,10 +41,12 @@ async function bench(isLoopback = true) {
     secrets: [],
     revision: 0,
   })
-  const describe = vi.fn(() => Promise.resolve({
-    ok: true as const,
-    value: { writable: true, hasDocument: true, namespaces: [namespace()] },
-  }))
+  const describe = isLoopback
+    ? vi.fn(() => Promise.resolve({
+      ok: true as const,
+      value: { writable: true, hasDocument: true, namespaces: [namespace()] },
+    }))
+    : vi.fn(() => Promise.reject(new Error('transport failure for /api/settings.describe: HTTP 403')))
   const mutate = vi.fn((_ns: string, ops: { path: string[]; value: unknown }[]) => {
     const op = ops[0]!
     section[op.path[0]!] = op.value
@@ -153,7 +155,7 @@ describe('ui-theme apply', () => {
     await vi.waitFor(() => { expect(b.mutate).toHaveBeenCalledTimes(2) })
   })
 
-  it('loads Host settings at boot, refreshes its namespace, and keeps remote browsers process-local', async () => {
+  it('loads Host settings at boot, refreshes its namespace, and keeps fence-refused callers process-local', async () => {
     const b = await bench()
     // The shared mirror read once at bench time; a Host-side change reaches it
     // through the document invalidation, exactly as production announces one.
@@ -180,9 +182,11 @@ describe('ui-theme apply', () => {
     declareItems(remote.slots)
     await remote.ctx.plugin({ inject: [...inject], apply }).await()
     const remoteTheme = remote.ctx.get('theme') as ThemeRuntime
+    await vi.waitFor(() => { expect(remote.describe).toHaveBeenCalledTimes(1) })
     remoteTheme.setTheme('dark')
     await Promise.resolve()
-    expect(remote.describe).not.toHaveBeenCalled()
+    expect(remoteTheme.getTheme().preference).toBe('dark')
+    expect(remote.describe).toHaveBeenCalledTimes(1)
     expect(remote.mutate).not.toHaveBeenCalled()
   })
 

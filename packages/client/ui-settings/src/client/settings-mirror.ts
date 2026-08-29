@@ -28,6 +28,11 @@ export interface SettingsWireFace {
 
 type SettingsFace = SettingsWireFace
 
+/** Whether the transport was refused by the privileged method fence. */
+function isFenceRefusal(failure: string): boolean {
+  return failure.includes('HTTP 403')
+}
+
 /** The full `settings.describe` answer the mirror serves. */
 export interface SettingsDescribeView {
   /** Every namespace a live Host plugin registered, as the Host reported it. */
@@ -93,14 +98,10 @@ export class SettingsDescribeMirror implements SettingsDescribeFace {
 
   /**
    * @param api - settings wire face.
-   * @param persistence - client-selected Host persistence; non-loopback pages may remain process-local.
    */
-  constructor(
-    private readonly api: SettingsFace,
-    private readonly persistence: 'host' | 'memory' = 'host',
-  ) {
+  constructor(private readonly api: SettingsFace) {
     this.store = createSnapshotStore<SettingsMirrorSnapshot>({
-      status: persistence === 'host' ? 'idle' : 'unavailable',
+      status: 'idle',
       view: undefined,
       error: null,
     })
@@ -126,7 +127,10 @@ export class SettingsDescribeMirror implements SettingsDescribeFace {
    * @returns settlement after this call's freshness is reflected.
    */
   load(): Promise<void> {
-    if (this.persistence === 'memory') return Promise.resolve()
+    // A connection reset re-probes a terminal refusal for the new generation.
+    if (this.getSnapshot().status === 'unavailable') {
+      this.store.set({ status: 'idle', view: undefined, error: null })
+    }
     if (this.inFlight !== undefined) {
       this.rerun = true
       return this.inFlight
@@ -144,7 +148,7 @@ export class SettingsDescribeMirror implements SettingsDescribeFace {
    * @returns settlement of the current or newly started read, if any.
    */
   ensure(): Promise<void> {
-    if (this.persistence === 'memory') return Promise.resolve()
+    if (this.getSnapshot().status === 'unavailable') return Promise.resolve()
     if (this.inFlight !== undefined) return this.inFlight
     if (this.getSnapshot().status === 'idle') return this.load()
     return Promise.resolve()
@@ -205,6 +209,8 @@ export class SettingsDescribeMirror implements SettingsDescribeFace {
         if (generation !== this.generation) continue
         if ('view' in outcome) {
           this.store.set({ status: 'ready', view: outcome.view, error: null })
+        } else if (isFenceRefusal(outcome.failure) && this.store.getSnapshot().view === undefined) {
+          this.store.set({ status: 'unavailable', view: undefined, error: outcome.failure })
         } else {
           const held = this.store.getSnapshot()
           // No answer yet: fall back to idle so `ensure` retries; with one, the

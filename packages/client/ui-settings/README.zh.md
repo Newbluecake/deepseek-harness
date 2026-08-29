@@ -94,7 +94,7 @@ kind: "package-reference"
 
 这些限制说明设置传输层够不到的地方；它们是当前包约束。
 
-- **非 loopback 页面没有持久化设置**：本 Client 在那里禁用 Host 持久化，因此 scope 以 `unavailable` 起步且从不跨线路；尽管 Connection 认证覆盖 API，它支撑的每一行仍在那里无效。
+- **被栅栏拒绝的调用方没有持久化设置**：设置 RPC 属于特权集合，因此镜像的第一次 `settings.describe` 同时是一次探测——纯文本 403 会把镜像终结为 `unavailable`，由其派生的每个 scope 也随之进入 memory 模式（进程内、不写线路）；而被栅栏放行的调用方——回环或已认证的远程会话——则像控制台一样读写 Host 文档。连接重置时会重新探测。
 
 <a id="dev-note"></a>
 ### 开发备注

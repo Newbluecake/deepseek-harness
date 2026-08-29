@@ -9,7 +9,7 @@
 import { Service } from '@deepseek-ai/cordis'
 import type { Context } from '@deepseek-ai/cordis'
 import type {
-  ConnectionHandle, JsonValue, SettingsNamespaceView, SettingsPathOpView,
+  JsonValue, SettingsNamespaceView, SettingsPathOpView,
 } from '@deepseek-ai/dsh-api-remotes/client'
 import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
 // Type-only, and deliberately NOT `@deepseek-ai/dsh-api-remotes/client`: this
@@ -57,29 +57,25 @@ export class SettingsScopeController<T> implements SettingsScope<T> {
    * @param api - settings wire face (writes only; reads ride the mirror).
    * @param spec - namespace identity and optional narrowing decoder.
    * @param mirror - the shared describe mirror this scope derives from.
-   * @param persistence - client-selected Host persistence; non-loopback pages may remain process-local.
    * @param schema - settings-owned schema operations.
    */
   constructor(
     private readonly api: SettingsFace,
     private readonly spec: SettingsScopeSpec<T>,
     private readonly mirror: SettingsDescribeMirror,
-    private readonly persistence: 'host' | 'memory',
     private readonly schema: SettingsSchemaService,
   ) {
     this.store = createSnapshotStore<SettingsScopeSnapshot<T>>({
-      status: persistence === 'host' ? 'loading' : 'unavailable',
+      status: 'loading',
       value: undefined,
       base: undefined,
       user: undefined,
       revision: undefined,
       writable: false,
-      mode: persistence,
+      mode: 'host',
     })
-    if (persistence === 'host') {
-      this.unsubscribe = mirror.subscribe(() => { this.derive() })
-      this.derive()
-    }
+    this.unsubscribe = mirror.subscribe(() => { this.derive() })
+    this.derive()
   }
 
   /** @returns the current sync snapshot (stable reference until the next change). */
@@ -169,7 +165,7 @@ export class SettingsScopeController<T> implements SettingsScope<T> {
   }
 
   private enqueue(operation: () => Promise<void>): Promise<void> {
-    if (this.persistence === 'memory' || this.disposed) return Promise.resolve()
+    if (this.getSnapshot().mode === 'memory' || this.disposed) return Promise.resolve()
     const task = this.tail.then(async () => {
       if (this.disposed) return
       await operation()
@@ -183,6 +179,14 @@ export class SettingsScopeController<T> implements SettingsScope<T> {
   private derive(): void {
     if (this.disposed) return
     const mirrored = this.mirror.getSnapshot()
+    if (mirrored.status === 'unavailable') {
+      this.store.update((draft) => {
+        draft.status = 'unavailable'
+        draft.mode = 'memory'
+        draft.writable = false
+      })
+      return
+    }
     if (mirrored.view === undefined) return
     const { writable } = mirrored.view
     const view = mirrored.view.namespaces.find(candidate => candidate.ns === this.spec.namespace)
@@ -283,12 +287,10 @@ export class SettingsScopeBinder extends Service {
    */
   bind<T>(spec: SettingsScopeSpec<T>): SettingsScope<T> {
     const ctx = this.ctx
-    const connection = ctx.get('connection') as ConnectionHandle
     const controller = new SettingsScopeController<T>(
       this.wire,
       spec,
       this.mirror,
-      connection.isLoopback ? 'host' : 'memory',
       this.schema,
     )
     ctx.effect(() => {

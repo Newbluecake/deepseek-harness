@@ -64,7 +64,7 @@ function derivedScope(
 ) {
   const wire = { settings: api } as never
   const mirror = new SettingsDescribeMirror(wire)
-  const scope = new SettingsScopeController<UiTestSettings>(wire, spec, mirror, 'host', settingsSchema)
+  const scope = new SettingsScopeController<UiTestSettings>(wire, spec, mirror, settingsSchema)
   return { mirror, scope }
 }
 
@@ -231,8 +231,8 @@ describe('SettingsScopeController', () => {
     const mutate = vi.fn().mockResolvedValueOnce(ok(view({ preference: 'dark' }, 5)))
     const wire = { settings: { describe: describeCall, mutate } } as never
     const mirror = new SettingsDescribeMirror(wire)
-    const writer = new SettingsScopeController<UiTestSettings>(wire, { namespace: 'ui-test' }, mirror, 'host', settingsSchema)
-    const sibling = new SettingsScopeController<UiTestSettings>(wire, { namespace: 'ui-test' }, mirror, 'host', settingsSchema)
+    const writer = new SettingsScopeController<UiTestSettings>(wire, { namespace: 'ui-test' }, mirror, settingsSchema)
+    const sibling = new SettingsScopeController<UiTestSettings>(wire, { namespace: 'ui-test' }, mirror, settingsSchema)
     await mirror.load()
     await writer.set('preference', 'dark')
     expect(describeCall).toHaveBeenCalledTimes(1)
@@ -417,7 +417,7 @@ describe('SettingsScopeController', () => {
     } as never
     const wire = { settings: {} } as never
     const scope = new SettingsScopeController<UiTestSettings>(
-      wire, { namespace: 'ui-test' }, mirror, 'host', settingsSchema)
+      wire, { namespace: 'ui-test' }, mirror, settingsSchema)
     expect(scope.getSnapshot()).toMatchObject({ value: { preference: 'dark' }, revision: 1 })
 
     await scope.dispose()
@@ -437,7 +437,7 @@ describe('SettingsScopeController', () => {
     const wire = { settings: { describe: describeCall, mutate } } as never
     const mirror = new SettingsDescribeMirror(wire)
     const scope = new SettingsScopeController<UiTestSettings>(
-      wire, { namespace: 'ui-test' }, mirror, 'host', settingsSchema)
+      wire, { namespace: 'ui-test' }, mirror, settingsSchema)
     expect(scope.getSnapshot()).toMatchObject({ status: 'loading', mode: 'host' })
     await mirror.load()
     expect(scope.getSnapshot()).toEqual({
