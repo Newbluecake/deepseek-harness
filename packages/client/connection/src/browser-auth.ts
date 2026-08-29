@@ -246,7 +246,7 @@ export class BrowserAuth {
     // A live admission-gate session (password login) satisfies the index fence
     // directly: the deployment password is the same authority the launch token
     // stands in for, and the gate cookie is already origin-bound.
-    if (this.peerAuthenticator?.(req) === true) return true
+    if (this.isPeerAuthenticated(req)) return true
     /* v8 ignore next -- node:http always supplies url on server requests. */
     const url = new URL(req.url ?? '/', 'http://dsh.invalid')
     const tokens = url.searchParams.getAll(TOKEN_QUERY)
@@ -288,6 +288,15 @@ export class BrowserAuth {
     if (this.isAuthenticated(req)) return true
     this.writeUnauthorized(req, res)
     return false
+  }
+
+  /**
+   * Ask the mounted admission gate whether it accepts this request.
+   * @param request - request headers carrying the gate's session cookie.
+   * @returns true only when a peer authentication row (e.g. web-auth) holds a live session.
+   */
+  isPeerAuthenticated(request: ConnectionTrustRequest): boolean {
+    return this.peerAuthenticator?.(request) ?? false
   }
 
   /**

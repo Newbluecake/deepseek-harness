@@ -94,8 +94,12 @@ export class HostConnectionService extends Service implements HostConnectionHand
 
   /** Apply the configured Host/Origin fence, then browser authentication. */
   requestRejection(request: ConnectionTrustRequest): ConnectionRequestRejection {
-    if (!isTrustedApiRequest(request, this.trustedHosts)) return 403
-    return this.browserAuth.isAuthenticated(request) ? undefined : 401
+    // A live admission-gate session satisfies both fences: the origin-bound
+    // password session is itself proof against DNS rebinding, and the
+    // deployment password outranks the process launch token.
+    const peer = this.browserAuth.isPeerAuthenticated(request)
+    if (!isTrustedApiRequest(request, this.trustedHosts, peer)) return 403
+    return peer || this.browserAuth.isAuthenticated(request) ? undefined : 401
   }
 
   /** Authenticate an index request through the process-token exchange or cookie. */
