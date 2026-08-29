@@ -3,7 +3,7 @@
  * narrow RpcRequest<P> and echoes request.rpcId on the RpcResponse<T>.
  */
 
-import { randomUUID } from 'node:crypto'
+import { randomUUID } from '@deepseek-ai/dsh-util-crypto'
 import { mkdir, stat } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { dirname } from 'node:path'
@@ -32,9 +32,8 @@ import {
 // Type-only: brings the `ctx.tools` Context merge into this program (viewFor reads presenters).
 import {
   InvalidPresetIdError, PresetExistsError, PresetMountError,
-  PresetNotWritableError, resolveSessionPreset, UnknownPresetError,
+  PresetNotWritableError, UnknownPresetError,
 } from '@deepseek-ai/dsh-agent-presets'
-import type { PresetBearingSession } from '@deepseek-ai/dsh-agent-presets'
 import type {} from '@deepseek-ai/dsh-tools'
 import type {
   ApiProxy, ConfigurableProviderView, CredentialView, GoalRef, HistoryEntry, HostFrame,
@@ -85,7 +84,7 @@ import type { SettingsDescriptor, SettingsNamespace, SettingsPathOp } from '@dee
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
 // Value edge: the rename impl narrows the title service's validation failure; the import also resolves `ctx.get('sessionTitle')`.
 import { SessionTitleInvalidError } from '@deepseek-ai/dsh-session-title'
-import type { CallId } from '@deepseek-ai/dsh-llm/brand'
+import type { ToolCallId } from '@deepseek-ai/dsh-llm/brand'
 import type { ScopeKey } from '@deepseek-ai/dsh-scope'
 import type { ApprovalOutcome, ApprovalRequestId } from '@deepseek-ai/dsh-user-approval'
 // Side-effect type import: resolves the `approval/request` waterfall and
@@ -473,6 +472,13 @@ function sessionListUpdatedAt(header: SessionHeader, metadata: SessionListMetada
   return Math.max(header.createdAt, metadata?.lastPromptAt ?? 0)
 }
 
+/** Resolve a session preset through the projection service when composed. */
+function presetFor(ctx: Context, header: SessionHeader, events: readonly SessionEvent[] = []): string | undefined {
+  const registry = ctx.get('sessionProjections')
+  if (registry !== undefined) return registry.restore({}, events, 0, header).snapshot.values.agentPreset ?? undefined
+  return [...events].reverse().find(event => event.type === 'agent-preset/selected')?.data.agentPreset ?? header.agentPreset
+}
+
 /** Shared Session-header projection for list baselines and creation frames. */
 function sessionListFields(header: SessionHeader, events: readonly SessionEvent[] = []): {
   parentSessionId?: SessionId
@@ -483,7 +489,7 @@ function sessionListFields(header: SessionHeader, events: readonly SessionEvent[
   // The preset comes from the log, not the header: a session that switched
   // while blank ran its turns under the newer composition, and a picker
   // showing the creation-time value would contradict what the model saw.
-  const agentPreset = resolveSessionPreset({ header, events })
+  const agentPreset = [...events].reverse().find(event => event.type === 'agent-preset/selected')?.data.agentPreset ?? header.agentPreset
   return {
     ...header.parentSession === undefined ? {} : { parentSessionId: header.parentSession },
     ...header.origin === undefined ? {} : { origin: header.origin },
@@ -623,7 +629,7 @@ interface PendingApproval {
   sessionId: SessionId
   approvalId: ApprovalRequestId
   toolName: string
-  callId?: CallId
+  callId?: ToolCallId
   reason?: string
   resolve(outcome: ApprovalOutcome): void
 }
@@ -811,11 +817,12 @@ function listProjectionsFor(ctx: Context, meta: SessionHeader, session: Session 
 /** Projection baseline for a detached history tail without Agent activation. */
 function detachedProjectionsFor(
   ctx: Context,
+  header: SessionHeader,
   events: readonly SessionEvent[],
 ): SessionProjectionsBlock | undefined {
   const registry = ctx.get('sessionProjections')
   if (registry === undefined) return undefined
-  return registry.restore({}, events, 0).snapshot
+  return registry.restore({}, events, 0, header).snapshot
 }
 
 /**
@@ -1209,7 +1216,7 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
   const agentFor = createApiRemoteAgentResolver(ctx, {
     agentOptions,
     setup: async ({ meta, events }) =>
-      (await composeAgent(resolveSessionPreset({ header: meta, events }))).setup,
+      (await composeAgent(presetFor(ctx, meta, events))).setup,
   })
 
   /** Send one transient frame to every connected mux consumer. */
@@ -1308,34 +1315,32 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
     })
   }
 
-  const disposeProvider = ctx.userQuestions.registerProvider({
-    ask(request: AskUserQuestionRequest): Promise<AskUserQuestionAnswer> {
-      const sessionId = request.agent?.id
-      if (sessionId === undefined) {
-        return Promise.reject(new UserQuestionError(
-          'web user interaction requires an agent-owned session', 'ASK_MISSING_AGENT'))
+  const disposeProvider = ctx.on('user-questions/request', function (request: AskUserQuestionRequest, _next): Promise<AskUserQuestionAnswer> {
+    const sessionId = request.agent?.id
+    if (sessionId === undefined) {
+      return Promise.reject(new UserQuestionError(
+        'web user interaction requires an agent-owned session', 'ASK_MISSING_AGENT'))
+    }
+    return new Promise<AskUserQuestionAnswer>((resolve, reject) => {
+      const rpcId = RpcId(randomUUID())
+      const pending: PendingQuestion = {
+        rpcId, sessionId, questions: request.questions, resolve, reject,
+        ...(request.signal === undefined ? {} : { signal: request.signal }),
       }
-      return new Promise<AskUserQuestionAnswer>((resolve, reject) => {
-        const rpcId = RpcId(randomUUID())
-        const pending: PendingQuestion = {
-          rpcId, sessionId, questions: request.questions, resolve, reject,
-          ...(request.signal === undefined ? {} : { signal: request.signal }),
-        }
-        const onAbort = (): void => {
-          claimQuestion(pending, 'cancelled')
-          reject(new UserQuestionError(
-            'ask_user_question was aborted before the user answered', 'ASK_ABORTED'))
-        }
-        pending.onAbort = onAbort
-        pendingQuestions.set(rpcId, pending)
-        request.signal?.addEventListener('abort', onAbort, { once: true })
-        const envelope: RpcRequest<MuxFrame> = {
-          rpcId,
-          payload: { type: 'question/requested', sessionId, questions: request.questions },
-        }
-        for (const queue of muxQueues) queue.push(envelope)
-      })
-    },
+      const onAbort = (): void => {
+        claimQuestion(pending, 'cancelled')
+        reject(new UserQuestionError(
+          'ask_user_question was aborted before the user answered', 'ASK_ABORTED'))
+      }
+      pending.onAbort = onAbort
+      pendingQuestions.set(rpcId, pending)
+      request.signal?.addEventListener('abort', onAbort, { once: true })
+      const envelope: RpcRequest<MuxFrame> = {
+        rpcId,
+        payload: { type: 'question/requested', sessionId, questions: request.questions },
+      }
+      for (const queue of muxQueues) queue.push(envelope)
+    })
   })
   ctx.effect(() => () => {
     disposeProvider()
@@ -1485,7 +1490,7 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
    * @param source - the live or detached session this read is served from.
    * @returns that session's creation header and its events.
    */
-  function sourceSession(source: HistorySource): PresetBearingSession {
+  function sourceSession(source: HistorySource): { header: SessionHeader; events: readonly SessionEvent[] } {
     if (source.kind === 'detached') return { header: source.header, events: source.events }
     return { header: source.session.header, events: source.session.events }
   }
@@ -1507,7 +1512,7 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
     includeProjections: boolean,
   ): { events: SessionEvent[]; projections?: SessionProjectionsBlock } {
     if (source.kind === 'detached') {
-      const projections = includeProjections ? detachedProjectionsFor(ctx, source.events) : undefined
+      const projections = includeProjections ? detachedProjectionsFor(ctx, source.header, source.events) : undefined
       return { events: source.events, ...projections === undefined ? {} : { projections } }
     }
     const events = [...source.session.events]
@@ -1537,7 +1542,7 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
    */
   async function presenterScopeFor(
     sessionId: SessionId,
-    session: PresetBearingSession,
+    session: { header: SessionHeader; events: readonly SessionEvent[] },
   ): Promise<ScopeKey | undefined> {
     const live = ctx.get('agents')?.get(sessionId)
     if (live !== undefined) return live
@@ -1548,7 +1553,7 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
       // through the DEFAULT preset's standing layer: that is the composition
       // an unnamed session composes today, and presenters are pure display,
       // so the worst a mismatch produces is the generic card it had anyway.
-      return await presets.standingKeyFor(resolveSessionPreset(session))
+      return await presets.standingKeyFor(presetFor(ctx, session.header, session.events))
     } catch {
       // Swallows only the unknown/unusable-preset rejection from the roster:
       // a deleted or broken preset must degrade this read, never fail it.
@@ -1590,7 +1595,7 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
           }
           // Resolved from the log, not the header: a session that switched
           // while blank ran every turn under the newer composition.
-          const storedPreset = resolveSessionPreset({ header: inspected.meta, events: inspected.events })
+          const storedPreset = presetFor(ctx, inspected.meta, inspected.events)
           assertPresetUnchanged(sessionId, presetId, storedPreset)
           // The stored preset wins over anything the request names: a resumed
           // session's history was produced under that composition, and
@@ -1641,7 +1646,7 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
     // Beside the cwd check for the same reason, and after the await so it
     // covers every path that yields a live agent — freshly created, adopted
     // live, resumed from disk, or recovered by the concurrent-creation catch.
-    assertPresetUnchanged(sessionId, presetId, resolveSessionPreset(agent.session))
+    assertPresetUnchanged(sessionId, presetId, presetFor(ctx, agent.session.header, agent.session.events))
     if (agent.session.header.cwd !== cwd) {
       throw new SessionCwdConflict(sessionId, cwd, agent.session.header.cwd)
     }
@@ -2148,7 +2153,7 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
         // echoing the header would contradict both the adoption this call just
         // allowed and the row `session.list` serves for the same session.
         const created = ctx.agents.get(sessionId)
-        const createdPreset = created === undefined ? undefined : resolveSessionPreset(created.session)
+        const createdPreset = created === undefined ? undefined : presetFor(ctx, created.session.header, created.session.events)
         return ok(request, { sessionId, ...createdPreset === undefined ? {} : { agentPreset: createdPreset } })
       },
 
@@ -2319,7 +2324,7 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
         // those tools, and composing anything else would strand the tool calls
         // it already carries. Now that no model-facing row sits in the host
         // plane, composing nothing would leave the child with no tools at all.
-        const forkComposition = await composeAgent(resolveSessionPreset(source))
+        const forkComposition = await composeAgent(presetFor(ctx, source.header, source.events))
         try {
           await ctx.agents.create({
             sessionId: childId,
@@ -2593,7 +2598,7 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
             header = inspected.meta
             events = inspected.events
             projections = beforeSeq === undefined
-              ? subagentHistoryProjections(ctx, childSessionId, () => detachedProjectionsFor(ctx, inspected.events))
+              ? subagentHistoryProjections(ctx, childSessionId, () => detachedProjectionsFor(ctx, inspected.meta, inspected.events))
               : undefined
           } catch (error: unknown) {
             if (signal?.aborted) {
@@ -3516,8 +3521,8 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
           // Allowlisted host events ride one verbatim wrapper frame each. The
           // allowlist is api-remotes', and `ctx.remote.$on` is the consumer
           // face; nothing here projects, redacts, or renames.
-          ...API_REMOTE_FORWARDED_EVENTS.map(name => ctx.on(
-            name,
+          ...API_REMOTE_FORWARDED_EVENTS.map(({ event: name }) => ctx.on(
+            name as never,
             // The allowlist's shape assertion proves each name is a real,
             // non-scoped, void-returning event, so the rest-parameter handler
             // satisfies every member of the union `on` accepts here;
@@ -3528,7 +3533,7 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
                 event: name,
                 args: assertJsonArgs(name, args),
               }))
-            }),
+            }) as never,
           )),
         ]
         return queue.iterate(signal, () => { for (const dispose of disposers) dispose() })

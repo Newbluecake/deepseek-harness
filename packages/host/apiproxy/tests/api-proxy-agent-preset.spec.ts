@@ -16,7 +16,7 @@ import UserQuestionService from '@deepseek-ai/dsh-user-questions'
 import { RpcId, type RpcRequest } from '../src/api/rpc.ts'
 import type { HostFrame } from '../src/api/events.ts'
 import {
-  InvalidPresetIdError, PresetExistsError, resolveSessionPreset, UnknownPresetError,
+  InvalidPresetIdError, PresetExistsError, UnknownPresetError,
 } from '@deepseek-ai/dsh-agent-presets'
 import type {} from '@deepseek-ai/dsh-agent-presets/types'
 import { GoalId } from '@deepseek-ai/dsh-goal'
@@ -367,7 +367,7 @@ describe('agentPreset.select', () => {
     const session = ctx.sessions.get(SessionId('sel-log'))
     if (session === undefined) throw new Error('unreachable')
     expect(session.header.agentPreset).toBe('standard')
-    expect(resolveSessionPreset(session)).toBe('minimal')
+    expect([...session.events].reverse().find(event => event.type === 'agent-preset/selected')?.data.agentPreset).toBe('minimal')
     const listed = await api.sessions.list(request({}))
     if (!listed.result.ok) throw new Error('unreachable')
     expect(listed.result.value.items.find(item => item.sessionId === 'sel-log')?.agentPreset)
@@ -424,7 +424,7 @@ describe('agentPreset.select', () => {
     const session = ctx.sessions.get(SessionId('sel-race'))
     if (session === undefined) throw new Error('unreachable')
     // One winner, and the log agrees with it: the last committed switch.
-    expect(resolveSessionPreset(session)).toBe('standard')
+    expect([...session.events].reverse().find(event => event.type === 'agent-preset/selected')?.data.agentPreset).toBe('standard')
   })
 
   it('refuses once the conversation has started', async () => {
