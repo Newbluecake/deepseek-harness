@@ -190,6 +190,7 @@ export class BrowserAuth {
     processOwner: object,
     private readonly secret: Buffer,
     maxAgeDays: number,
+    private readonly peerAuthenticator?: (req: ConnectionIndexRequest) => boolean,
   ) {
     this.launchToken = processLaunchToken(processOwner)
     this.maxAgeMilliseconds = maxAgeDays * DAY_MILLISECONDS
@@ -205,14 +206,18 @@ export class BrowserAuth {
    * @param processOwner - root application context retaining one token across Connection reloads.
    * @param credentials - persistent credential provider for the Web profile.
    * @param maxAgeDays - positive absolute browser-cookie lifetime in days.
+   * @param peerAuthenticator - optional admission-gate check (e.g. the
+   * web-auth password session); a request it accepts has proven the
+   * deployment password, which outranks the launch token.
    * @returns initialized authentication owner with the process owner's launch token.
    */
   static async create(
     processOwner: object,
     credentials: CredentialProvider,
     maxAgeDays: number,
+    peerAuthenticator?: (req: ConnectionIndexRequest) => boolean,
   ): Promise<BrowserAuth> {
-    return new BrowserAuth(processOwner, await initializeSecret(credentials), maxAgeDays)
+    return new BrowserAuth(processOwner, await initializeSecret(credentials), maxAgeDays, peerAuthenticator)
   }
 
   /**
@@ -238,6 +243,10 @@ export class BrowserAuth {
    * @returns true only when the caller may serve index.html.
    */
   authorizeIndex(req: ConnectionIndexRequest, res: ConnectionIndexResponse): boolean {
+    // A live admission-gate session (password login) satisfies the index fence
+    // directly: the deployment password is the same authority the launch token
+    // stands in for, and the gate cookie is already origin-bound.
+    if (this.peerAuthenticator?.(req) === true) return true
     /* v8 ignore next -- node:http always supplies url on server requests. */
     const url = new URL(req.url ?? '/', 'http://dsh.invalid')
     const tokens = url.searchParams.getAll(TOKEN_QUERY)

@@ -16,6 +16,7 @@ export const SESSION_COOKIE = 'dsh_session'
 /** The header facts cookie reading needs, from either HTTP representation. */
 export interface CookieBearingRequest {
   headers: IncomingHttpHeaders | Headers
+    | Readonly<Record<string, string | readonly string[] | undefined>>
 }
 
 /**
@@ -25,9 +26,10 @@ export interface CookieBearingRequest {
  * @returns the raw value, or undefined when the header omits it.
  */
 export function readCookie(req: CookieBearingRequest, name: string): string | undefined {
-  const header = req.headers instanceof Headers
+  const raw = req.headers instanceof Headers
     ? req.headers.get('cookie') ?? undefined
     : req.headers.cookie
+  const header = typeof raw === 'string' ? raw : raw?.join(';')
   if (header === undefined) return undefined
   for (const part of header.split(';')) {
     const eq = part.indexOf('=')

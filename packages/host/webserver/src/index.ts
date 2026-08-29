@@ -87,6 +87,7 @@ export interface WebGate {
 /** Request headers that an authentication Provider may inspect. */
 export interface WebAuthenticationRequest {
   headers: IncomingMessage['headers'] | Headers
+    | Readonly<Record<string, string | readonly string[] | undefined>>
 }
 
 /** Authentication result consumed by the Web transport and admission policy. */

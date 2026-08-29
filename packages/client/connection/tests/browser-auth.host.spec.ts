@@ -167,6 +167,19 @@ describe('BrowserAuth', () => {
     }
   })
 
+  it('admits requests accepted by the peer authenticator without a cookie or token', async () => {
+    const store = new RecordCredentials()
+    const auth = await BrowserAuth.create({}, credentials(store), 30, () => true)
+    const allowed = response()
+    expect(auth.authorizeIndex(request('/'), allowed.value)).toBe(true)
+    expect(allowed.state).toEqual({})
+
+    const refusing = await BrowserAuth.create({}, credentials(store), 30, () => false)
+    const denied = response()
+    expect(refusing.authorizeIndex(request('/'), denied.value)).toBe(false)
+    expect(denied.state.status).toBe(401)
+  })
+
   it('rejects tampering, expiry, future issuance, and a longer lifetime than configured', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-08-24T00:00:00.000Z'))

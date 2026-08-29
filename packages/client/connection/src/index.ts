@@ -108,7 +108,11 @@ export async function apply(ctx: Context, config?: ConnectionConfig): Promise<vo
   const connection = new HostConnectionService(
     ctx,
     trustedHosts,
-    await BrowserAuth.create(ctx.root, ctx.credentials, cookieMaxAgeDays),
+    await BrowserAuth.create(ctx.root, ctx.credentials, cookieMaxAgeDays,
+      // A mounted admission gate (web-auth password session) also satisfies the
+      // index fence; absent the row, `get` resolves undefined and the launch
+      // token remains the only way in.
+      req => ctx.get('webAuth')?.isAuthenticated({ headers: req.headers }) ?? false),
   )
   const fetchHandler = connection.createSharedFetchHandler(API_PATH)
   const route: WebRoute = {
